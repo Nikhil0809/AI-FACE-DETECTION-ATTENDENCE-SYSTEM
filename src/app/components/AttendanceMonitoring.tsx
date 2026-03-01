@@ -4,24 +4,39 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ScanFace, Clock, Users, CheckCircle2, XCircle, StopCircle } from 'lucide-react';
 import { Progress } from './ui/progress';
-
-const mockPresentStudents = [
-  { rollNo: 'CS2021001', name: 'Rahul Sharma', time: '09:05 AM', confidence: 98 },
-  { rollNo: 'CS2021032', name: 'Sneha Reddy', time: '09:06 AM', confidence: 97 },
-  { rollNo: 'CS2021087', name: 'Vikram Joshi', time: '09:08 AM', confidence: 99 },
-  { rollNo: 'EC2021045', name: 'Priya Patel', time: '09:10 AM', confidence: 96 },
-  { rollNo: 'EC2021078', name: 'Anjali Verma', time: '09:12 AM', confidence: 98 },
-];
-
-const mockAbsentStudents = [
-  { rollNo: 'ME2021023', name: 'Amit Kumar' },
-  { rollNo: 'EE2021056', name: 'Arjun Singh' },
-  { rollNo: 'CE2021012', name: 'Kavya Nair' },
-];
+import { getAttendance, AttendanceRecord, connectWebSocket } from '../api/apiClient';
 
 export function AttendanceMonitoring() {
   const [sessionTime, setSessionTime] = useState(0);
   const [isSessionActive, setIsSessionActive] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+
+  // Load attendance records on mount
+  useEffect(() => {
+    const loadAttendance = async () => {
+      setLoading(true);
+      const records = await getAttendance(100);
+      setAttendanceRecords(records);
+      setLoading(false);
+    };
+
+    loadAttendance();
+  }, []);
+
+  // Set up WebSocket for real-time updates
+  useEffect(() => {
+    const ws = connectWebSocket((data) => {
+      if (data.type === 'attendance_marked') {
+        // Reload attendance records
+        getAttendance(100).then(setAttendanceRecords);
+      }
+    });
+
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isSessionActive) return;
@@ -39,8 +54,33 @@ export function AttendanceMonitoring() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const totalStudents = mockPresentStudents.length + mockAbsentStudents.length;
-  const attendancePercentage = (mockPresentStudents.length / totalStudents) * 100;
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return timestamp;
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="p-6 rounded-xl shadow-sm">
+        <div className="animate-pulse space-y-4">
+          <div className="h-10 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-8 bg-gray-200 rounded w-full"></div>
+        </div>
+      </Card>
+    );
+  }
+
+  const totalRecords = attendanceRecords.length;
+  const uniqueStudents = new Set(attendanceRecords.map((r) => r.rollNumber)).size;
 
   return (
     <div className="space-y-6">
@@ -59,7 +99,7 @@ export function AttendanceMonitoring() {
                 {isSessionActive ? 'Live Attendance Session' : 'Session Ended'}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
-                Computer Science - Year 3 - Data Structures
+                Real-time Attendance Monitoring
               </p>
               <div className="flex items-center gap-4 mt-2">
                 <div className="flex items-center gap-2">
@@ -69,7 +109,7 @@ export function AttendanceMonitoring() {
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-gray-600" />
                   <span className="text-sm font-medium">
-                    {mockPresentStudents.length}/{totalStudents} Present
+                    {totalRecords} Records
                   </span>
                 </div>
               </div>
@@ -115,10 +155,10 @@ export function AttendanceMonitoring() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">Attendance Progress</span>
             <span className="text-sm font-bold" style={{ color: '#1E3A8A' }}>
-              {attendancePercentage.toFixed(0)}%
+              {totalRecords > 0 ? '100%' : '0%'}
             </span>
           </div>
-          <Progress value={attendancePercentage} className="h-2" />
+          <Progress value={totalRecords > 0 ? 100 : 0} className="h-2" />
         </div>
       </Card>
 
@@ -133,9 +173,9 @@ export function AttendanceMonitoring() {
               <Users className="w-6 h-6" style={{ color: '#1E3A8A' }} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Total Students</p>
+              <p className="text-sm text-gray-600">Total Records</p>
               <h3 className="text-2xl font-bold" style={{ color: '#1E3A8A' }}>
-                {totalStudents}
+                {totalRecords}
               </h3>
             </div>
           </div>
@@ -150,9 +190,9 @@ export function AttendanceMonitoring() {
               <CheckCircle2 className="w-6 h-6" style={{ color: '#10B981' }} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Present</p>
+              <p className="text-sm text-gray-600">Unique Students</p>
               <h3 className="text-2xl font-bold" style={{ color: '#10B981' }}>
-                {mockPresentStudents.length}
+                {uniqueStudents}
               </h3>
             </div>
           </div>
@@ -167,94 +207,64 @@ export function AttendanceMonitoring() {
               <XCircle className="w-6 h-6" style={{ color: '#EF4444' }} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Absent</p>
+              <p className="text-sm text-gray-600">Session Time</p>
               <h3 className="text-2xl font-bold" style={{ color: '#EF4444' }}>
-                {mockAbsentStudents.length}
+                {formatTime(sessionTime)}
               </h3>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Present and Absent Lists */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Present Students */}
-        <Card className="rounded-xl shadow-sm">
-          <div
-            className="p-4 border-b border-gray-200 flex items-center gap-2"
-            style={{ backgroundColor: '#ECFDF5' }}
-          >
-            <CheckCircle2 className="w-5 h-5" style={{ color: '#10B981' }} />
-            <h3 className="font-bold" style={{ color: '#10B981' }}>
-              Present Students ({mockPresentStudents.length})
-            </h3>
-          </div>
-          <div className="p-4 max-h-96 overflow-y-auto">
-            <div className="space-y-2">
-              {mockPresentStudents.map((student) => (
-                <div
-                  key={student.rollNo}
-                  className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{student.name}</p>
-                      <p className="text-sm text-gray-600">{student.rollNo}</p>
-                    </div>
-                    <div className="text-right">
+      {/* Attendance Records List */}
+      <Card className="rounded-xl shadow-sm">
+        <div
+          className="p-4 border-b border-gray-200 flex items-center gap-2"
+          style={{ backgroundColor: '#ECFDF5' }}
+        >
+          <CheckCircle2 className="w-5 h-5" style={{ color: '#10B981' }} />
+          <h3 className="font-bold" style={{ color: '#10B981' }}>
+            Recent Attendance Records ({totalRecords})
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Roll Number</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Student Name</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Time</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {attendanceRecords.length > 0 ? (
+                attendanceRecords.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.rollNumber}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{record.studentName}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{formatTimestamp(record.timestamp)}</td>
+                    <td className="px-4 py-3 text-sm">
                       <Badge
-                        className="rounded-full mb-1"
+                        className="rounded-full"
                         style={{ backgroundColor: '#ECFDF5', color: '#10B981' }}
                       >
-                        {student.confidence}% Match
+                        ✓ Present
                       </Badge>
-                      <p className="text-xs text-gray-500">{student.time}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-
-        {/* Absent Students */}
-        <Card className="rounded-xl shadow-sm">
-          <div
-            className="p-4 border-b border-gray-200 flex items-center gap-2"
-            style={{ backgroundColor: '#FEF2F2' }}
-          >
-            <XCircle className="w-5 h-5" style={{ color: '#EF4444' }} />
-            <h3 className="font-bold" style={{ color: '#EF4444' }}>
-              Absent Students ({mockAbsentStudents.length})
-            </h3>
-          </div>
-          <div className="p-4 max-h-96 overflow-y-auto">
-            <div className="space-y-2">
-              {mockAbsentStudents.map((student) => (
-                <div
-                  key={student.rollNo}
-                  className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{student.name}</p>
-                      <p className="text-sm text-gray-600">{student.rollNo}</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs"
-                      style={{ borderColor: '#EF4444', color: '#EF4444' }}
-                    >
-                      Send Alert
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                    No attendance records yet. Start a session to begin recording attendance.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }

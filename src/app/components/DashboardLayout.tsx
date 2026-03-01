@@ -36,7 +36,7 @@ export function DashboardLayout({
     { id: 'reports', label: 'Attendance Reports', icon: FileText },
     { id: 'csv-upload', label: 'CSV Upload', icon: Upload, adminOnly: true },
     { id: 'sms-logs', label: 'SMS Logs', icon: MessageSquare },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'admin-settings', label: 'Admin Settings', icon: Settings, adminOnly: true },
   ];
 
   const filteredMenuItems = menuItems.filter(

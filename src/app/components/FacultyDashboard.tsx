@@ -16,6 +16,8 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { Progress } from './ui/progress';
+import AttendanceCamera, { DetectionResult } from './AttendanceCamera';
+import { apiClient } from '../api/apiClient';
 
 interface DetectedStudent {
   id: string;
@@ -26,18 +28,11 @@ interface DetectedStudent {
   image?: string;
 }
 
-const studentPool = [
-  { rollNo: 'CS2021001', name: 'Rahul Sharma' },
-  { rollNo: 'CS2021032', name: 'Sneha Reddy' },
-  { rollNo: 'CS2021087', name: 'Vikram Joshi' },
-  { rollNo: 'EC2021045', name: 'Priya Patel' },
-  { rollNo: 'EC2021078', name: 'Anjali Verma' },
-  { rollNo: 'ME2021023', name: 'Amit Kumar' },
-  { rollNo: 'EE2021056', name: 'Arjun Singh' },
-  { rollNo: 'CE2021012', name: 'Kavya Nair' },
-  { rollNo: 'CS2021045', name: 'Ravi Shankar' },
-  { rollNo: 'EC2021089', name: 'Deepika Rao' },
-];
+interface StudentData {
+  id: string;
+  name: string;
+  rollNumber: string;
+}
 
 export function FacultyDashboard() {
   const [isScanning, setIsScanning] = useState(false);
@@ -45,6 +40,38 @@ export function FacultyDashboard() {
   const [detectedStudents, setDetectedStudents] = useState<DetectedStudent[]>([]);
   const [currentDetection, setCurrentDetection] = useState<string | null>(null);
   const [scanningAnimation, setScanningAnimation] = useState(0);
+  const [allStudents, setAllStudents] = useState<StudentData[]>([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+
+  // Load students from backend
+  useEffect(() => {
+    loadStudents();
+  }, []);
+
+  const loadStudents = async () => {
+    try {
+      setIsLoadingStudents(true);
+      const students = await apiClient.getStudents();
+      setAllStudents(students || []);
+    } catch (error) {
+      console.error('Error loading students:', error);
+      setAllStudents([]);
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  };
+
+  // Listen for new student registrations
+  useEffect(() => {
+    const ws = apiClient.connectWebSocket((data: any) => {
+      if (data.type === 'student_registered') {
+        loadStudents();
+      }
+    });
+    return () => {
+      if (ws) ws.close();
+    };
+  }, []);
 
   // Session timer
   useEffect(() => {
@@ -64,43 +91,24 @@ export function FacultyDashboard() {
     return () => clearInterval(interval);
   }, [isScanning]);
 
-  // Simulate face detection
-  useEffect(() => {
-    if (!isScanning) return;
+  // When the camera component reports a result, add it to the list
+  const handleCameraDetection = (data: DetectionResult) => {
+    setCurrentDetection(data.name);
 
-    const detectFace = () => {
-      // Randomly detect a student
-      if (Math.random() > 0.7) {
-        const availableStudents = studentPool.filter(
-          (student) => !detectedStudents.find((d) => d.rollNo === student.rollNo)
-        );
-
-        if (availableStudents.length > 0) {
-          const randomStudent =
-            availableStudents[Math.floor(Math.random() * availableStudents.length)];
-          const confidence = 92 + Math.floor(Math.random() * 7);
-
-          setCurrentDetection(randomStudent.name);
-
-          setTimeout(() => {
-            const newDetection: DetectedStudent = {
-              id: Math.random().toString(),
-              rollNo: randomStudent.rollNo,
-              name: randomStudent.name,
-              confidence,
-              timestamp: new Date().toLocaleTimeString(),
-            };
-
-            setDetectedStudents((prev) => [newDetection, ...prev]);
-            setCurrentDetection(null);
-          }, 1500);
-        }
-      }
+    const newDetection: DetectedStudent = {
+      id: data.id ?? Math.random().toString(),
+      rollNo: data.rollNo ?? '',
+      name: data.name,
+      confidence: data.confidence ?? 0,
+      timestamp: data.timestamp ?? new Date().toLocaleTimeString(),
+      image: data.image,
     };
 
-    const interval = setInterval(detectFace, 3000);
-    return () => clearInterval(interval);
-  }, [isScanning, detectedStudents]);
+    setDetectedStudents((prev) => [newDetection, ...prev]);
+
+    // clear the transient label after a short delay
+    setTimeout(() => setCurrentDetection(null), 1500);
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -119,8 +127,8 @@ export function FacultyDashboard() {
     setCurrentDetection(null);
   };
 
-  const totalExpected = studentPool.length;
-  const attendancePercentage = (detectedStudents.length / totalExpected) * 100;
+  const totalExpected = allStudents.length;
+  const attendancePercentage = totalExpected > 0 ? (detectedStudents.length / totalExpected) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -312,8 +320,10 @@ export function FacultyDashboard() {
               </div>
             ) : (
               <div className="relative w-full h-full">
-                {/* Simulated camera background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-gray-900/60"></div>
+                {/* actual webcam feed underneath overlays */}
+                <div className="absolute inset-0">
+                  <AttendanceCamera onDetection={handleCameraDetection} />
+                </div>
 
                 {/* Scanning grid overlay */}
                 <div className="absolute inset-0 opacity-30">

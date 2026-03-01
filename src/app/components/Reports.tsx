@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Calendar, Download, FileText, FileSpreadsheet } from 'lucide-react';
@@ -12,59 +12,59 @@ import {
   SelectValue,
 } from './ui/select';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-
-const subjectWiseData = [
-  { subject: 'Data Structures', attendance: 94 },
-  { subject: 'Algorithms', attendance: 91 },
-  { subject: 'Database Systems', attendance: 88 },
-  { subject: 'Operating Systems', attendance: 92 },
-  { subject: 'Computer Networks', attendance: 89 },
-  { subject: 'Software Engineering', attendance: 93 },
-];
-
-const attendanceHeatmap = [
-  { date: '01', value: 92 },
-  { date: '02', value: 88 },
-  { date: '03', value: 95 },
-  { date: '04', value: 91 },
-  { date: '05', value: 89 },
-  { date: '06', value: 0 }, // Sunday
-  { date: '07', value: 0 }, // Sunday
-  { date: '08', value: 94 },
-  { date: '09', value: 90 },
-  { date: '10', value: 93 },
-  { date: '11', value: 87 },
-  { date: '12', value: 91 },
-  { date: '13', value: 0 },
-  { date: '14', value: 0 },
-  { date: '15', value: 96 },
-  { date: '16', value: 89 },
-  { date: '17', value: 92 },
-  { date: '18', value: 88 },
-  { date: '19', value: 94 },
-  { date: '20', value: 0 },
-  { date: '21', value: 0 },
-  { date: '22', value: 91 },
-  { date: '23', value: 93 },
-  { date: '24', value: 90 },
-  { date: '25', value: 95 },
-  { date: '26', value: 89 },
-  { date: '27', value: 92 },
-  { date: '28', value: 0 },
-];
+import { getAttendance, AttendanceRecord } from '../api/apiClient';
 
 export function Reports() {
   const [startDate, setStartDate] = useState('2026-02-01');
   const [endDate, setEndDate] = useState('2026-02-28');
   const [selectedDept, setSelectedDept] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      const records = await getAttendance(500);
+      setAttendanceRecords(records);
+      setLoading(false);
+    };
+
+    loadData();
+  }, []);
+
+  // Calculate daily attendance
+  const dailyAttendance = attendanceRecords.reduce(
+    (acc, record) => {
+      const date = new Date(record.timestamp).getDate().toString().padStart(2, '0');
+      const existing = acc.find((d) => d.date === date);
+      if (existing) {
+        existing.value += 1;
+      } else {
+        acc.push({ date, value: 1 });
+      }
+      return acc;
+    },
+    [] as Array<{ date: string; value: number }>
+  );
 
   const getHeatmapColor = (value: number) => {
     if (value === 0) return '#E5E7EB';
-    if (value >= 95) return '#10B981';
-    if (value >= 90) return '#34D399';
-    if (value >= 85) return '#6EE7B7';
+    if (value >= 50) return '#10B981';
+    if (value >= 30) return '#34D399';
+    if (value >= 10) return '#6EE7B7';
     return '#FCA5A5';
   };
+
+  if (loading) {
+    return (
+      <Card className="p-6 rounded-xl shadow-sm">
+        <div className="animate-pulse space-y-4">
+          <div className="h-10 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-8 bg-gray-200 rounded w-full"></div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -177,7 +177,7 @@ export function Reports() {
       {/* Attendance Heatmap Calendar */}
       <Card className="p-6 rounded-xl shadow-sm">
         <h3 className="text-lg font-bold mb-4" style={{ color: '#1E3A8A' }}>
-          February 2026 - Attendance Heatmap
+          Daily Attendance Heatmap (Current Month)
         </h3>
         <div className="grid grid-cols-7 gap-2">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
@@ -185,28 +185,28 @@ export function Reports() {
               {day}
             </div>
           ))}
-          {attendanceHeatmap.map((day) => (
+          {dailyAttendance.map((day) => (
             <div
               key={day.date}
               className="aspect-square rounded-lg flex items-center justify-center text-sm font-medium cursor-pointer hover:opacity-80 transition-opacity"
               style={{ backgroundColor: getHeatmapColor(day.value) }}
-              title={day.value > 0 ? `${day.value}% attendance` : 'No class'}
+              title={`${day.value} attendance records`}
             >
-              <span className={day.value > 0 ? 'text-white' : 'text-gray-400'}>
+              <span className={day.value > 0 ? 'text-white font-bold' : 'text-gray-400'}>
                 {day.date}
               </span>
             </div>
           ))}
         </div>
         <div className="flex items-center justify-center gap-4 mt-6 text-sm">
-          <span className="text-gray-600">Less</span>
+          <span className="text-gray-600">Low</span>
           <div className="flex gap-1">
             {[
-              { color: '#E5E7EB', label: 'No class' },
-              { color: '#FCA5A5', label: '<85%' },
-              { color: '#6EE7B7', label: '85-90%' },
-              { color: '#34D399', label: '90-95%' },
-              { color: '#10B981', label: '95%+' },
+              { color: '#E5E7EB', label: 'No data' },
+              { color: '#FCA5A5', label: '1-10' },
+              { color: '#6EE7B7', label: '10-30' },
+              { color: '#34D399', label: '30-50' },
+              { color: '#10B981', label: '50+' },
             ].map((item, index) => (
               <div
                 key={index}
@@ -216,59 +216,28 @@ export function Reports() {
               />
             ))}
           </div>
-          <span className="text-gray-600">More</span>
-        </div>
-      </Card>
-
-      {/* Subject-wise Breakdown */}
-      <Card className="p-6 rounded-xl shadow-sm">
-        <h3 className="text-lg font-bold mb-4" style={{ color: '#1E3A8A' }}>
-          Subject-wise Attendance Breakdown
-        </h3>
-        <div className="h-96">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={subjectWiseData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis type="number" domain={[0, 100]} />
-              <YAxis dataKey="subject" type="category" width={150} />
-              <Tooltip />
-              <Legend />
-              <Bar
-                dataKey="attendance"
-                fill="#1E3A8A"
-                name="Attendance %"
-                radius={[0, 8, 8, 0]}
-                label={{ position: 'right', fill: '#1E3A8A', fontWeight: 'bold' }}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <span className="text-gray-600">High</span>
         </div>
       </Card>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="p-6 rounded-xl shadow-sm">
-          <p className="text-sm text-gray-600">Average Attendance</p>
+          <p className="text-sm text-gray-600">Total Attendance Records</p>
           <h3 className="text-3xl font-bold mt-2" style={{ color: '#1E3A8A' }}>
-            91.2%
+            {attendanceRecords.length}
           </h3>
         </Card>
         <Card className="p-6 rounded-xl shadow-sm">
-          <p className="text-sm text-gray-600">Total Classes</p>
-          <h3 className="text-3xl font-bold mt-2" style={{ color: '#1E3A8A' }}>
-            124
+          <p className="text-sm text-gray-600">Unique Students</p>
+          <h3 className="text-3xl font-bold mt-2" style={{ color: '#10B981' }}>
+            {new Set(attendanceRecords.map((r) => r.rollNumber)).size}
           </h3>
         </Card>
         <Card className="p-6 rounded-xl shadow-sm">
-          <p className="text-sm text-gray-600">Best Performing Subject</p>
-          <h3 className="text-lg font-bold mt-2" style={{ color: '#10B981' }}>
-            Data Structures
-          </h3>
-        </Card>
-        <Card className="p-6 rounded-xl shadow-sm">
-          <p className="text-sm text-gray-600">Needs Attention</p>
-          <h3 className="text-lg font-bold mt-2" style={{ color: '#EF4444' }}>
-            Database Systems
+          <p className="text-sm text-gray-600">Active Days</p>
+          <h3 className="text-3xl font-bold mt-2" style={{ color: '#EF4444' }}>
+            {dailyAttendance.length}
           </h3>
         </Card>
       </div>

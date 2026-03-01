@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-socketio[asyncio_server]
+celery
+redis
+psycopg2-binary
+opencv-python
+numpy
+face-recognition
+face_recognition

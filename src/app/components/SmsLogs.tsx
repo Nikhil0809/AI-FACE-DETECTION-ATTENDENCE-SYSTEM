@@ -18,96 +18,58 @@ import {
   SelectValue,
 } from './ui/select';
 import { Search, Download, MessageSquare, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { apiClient } from '../api/apiClient';
 
-const mockSmsLogs = [
-  {
-    id: 1,
-    student: 'Rahul Sharma',
-    rollNo: 'CS2021001',
-    phone: '+91 98765 43210',
-    message: 'Your ward was absent on 27/02/2026. Please ensure regular attendance.',
-    status: 'Sent',
-    time: '10:30 AM',
-    date: '27/02/2026',
-  },
-  {
-    id: 2,
-    student: 'Amit Kumar',
-    rollNo: 'ME2021023',
-    phone: '+91 98765 43212',
-    message: 'Your ward was absent on 27/02/2026. Please ensure regular attendance.',
-    status: 'Sent',
-    time: '10:31 AM',
-    date: '27/02/2026',
-  },
-  {
-    id: 3,
-    student: 'Arjun Singh',
-    rollNo: 'EE2021056',
-    phone: '+91 98765 43214',
-    message: 'Your ward was absent on 27/02/2026. Please ensure regular attendance.',
-    status: 'Failed',
-    time: '10:32 AM',
-    date: '27/02/2026',
-  },
-  {
-    id: 4,
-    student: 'Kavya Nair',
-    rollNo: 'CE2021012',
-    phone: '+91 98765 43215',
-    message: 'Your ward was absent on 27/02/2026. Please ensure regular attendance.',
-    status: 'Sent',
-    time: '10:33 AM',
-    date: '27/02/2026',
-  },
-  {
-    id: 5,
-    student: 'Priya Patel',
-    rollNo: 'EC2021045',
-    phone: '+91 98765 43211',
-    message: 'Reminder: Low attendance (78%). Please improve attendance.',
-    status: 'Sent',
-    time: '09:15 AM',
-    date: '26/02/2026',
-  },
-  {
-    id: 6,
-    student: 'Sneha Reddy',
-    rollNo: 'CS2021032',
-    phone: '+91 98765 43213',
-    message: 'Monthly attendance report: 92% attendance. Keep it up!',
-    status: 'Sent',
-    time: '09:00 AM',
-    date: '25/02/2026',
-  },
-  {
-    id: 7,
-    student: 'Vikram Joshi',
-    rollNo: 'CS2021087',
-    phone: '+91 98765 43216',
-    message: 'Your ward was absent on 24/02/2026. Please ensure regular attendance.',
-    status: 'Pending',
-    time: '10:45 AM',
-    date: '24/02/2026',
-  },
-  {
-    id: 8,
-    student: 'Anjali Verma',
-    rollNo: 'EC2021078',
-    phone: '+91 98765 43217',
-    message: 'Reminder: Low attendance (81%). Please improve attendance.',
-    status: 'Failed',
-    time: '03:20 PM',
-    date: '23/02/2026',
-  },
-];
+interface SmsLog {
+  id: string;
+  student: string;
+  rollNo: string;
+  phone: string;
+  message: string;
+  status: string;
+  time: string;
+  date: string;
+}
 
 export function SmsLogs() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filteredLogs = mockSmsLogs.filter((log) => {
+  // Load SMS logs from backend
+  useEffect(() => {
+    loadSmsLogs();
+  }, []);
+
+  const loadSmsLogs = async () => {
+    try {
+      setIsLoading(true);
+      // TODO: Implement SMS log endpoint in backend when SMS functionality is added
+      // For now, start with empty logs
+      setSmsLogs([]);
+    } catch (error) {
+      console.error('Error loading SMS logs:', error);
+      setSmsLogs([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Listen for SMS log updates via WebSocket
+  useEffect(() => {
+    const ws = apiClient.connectWebSocket((data: any) => {
+      if (data.type === 'sms_sent') {
+        loadSmsLogs();
+      }
+    });
+    return () => {
+      if (ws) ws.close();
+    };
+  }, []);
+
+  const filteredLogs = smsLogs.filter((log) => {
     const matchesSearch =
       log.student.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.rollNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -117,10 +79,10 @@ export function SmsLogs() {
   });
 
   const stats = {
-    total: mockSmsLogs.length,
-    sent: mockSmsLogs.filter((log) => log.status === 'Sent').length,
-    failed: mockSmsLogs.filter((log) => log.status === 'Failed').length,
-    pending: mockSmsLogs.filter((log) => log.status === 'Pending').length,
+    total: smsLogs.length,
+    sent: smsLogs.filter((log) => log.status === 'Sent').length,
+    failed: smsLogs.filter((log) => log.status === 'Failed').length,
+    pending: smsLogs.filter((log) => log.status === 'Pending').length,
   };
 
   const getStatusIcon = (status: string) => {
@@ -266,54 +228,71 @@ export function SmsLogs() {
             SMS Notification Logs
           </h3>
           <p className="text-sm text-gray-600 mt-1">
-            {filteredLogs.length} messages found
+            {isLoading ? 'Loading...' : `${filteredLogs.length} messages found`}
           </p>
         </div>
 
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student</TableHead>
-                <TableHead>Roll No</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Message</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date & Time</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLogs.map((log) => (
-                <TableRow key={log.id} className="hover:bg-gray-50">
-                  <TableCell className="font-medium">{log.student}</TableCell>
-                  <TableCell>{log.rollNo}</TableCell>
-                  <TableCell>{log.phone}</TableCell>
-                  <TableCell>
-                    <p className="text-sm text-gray-600 max-w-md truncate">
-                      {log.message}
-                    </p>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className="rounded-full flex items-center gap-1.5 w-fit"
-                      style={getStatusColor(log.status)}
-                    >
-                      {getStatusIcon(log.status)}
-                      {log.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      <p className="font-medium text-gray-900">{log.date}</p>
-                      <p className="text-gray-500">{log.time}</p>
-                    </div>
-                  </TableCell>
+        {isLoading ? (
+          <div className="p-12 text-center">
+            <div className="h-8 bg-gray-300 rounded animate-pulse mb-4 w-1/2 mx-auto"></div>
+          </div>
+        ) : smsLogs.length === 0 ? (
+          <div className="p-12 text-center text-gray-600">
+            <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No SMS logs available</p>
+            <p className="text-sm mt-2">SMS notifications will appear here when the SMS feature is enabled.</p>
+          </div>
+        ) : filteredLogs.length === 0 ? (
+          <div className="p-12 text-center text-gray-600">
+            <p className="text-lg">No messages match your search</p>
+            <p className="text-sm mt-2">Try adjusting your search or filter criteria</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student</TableHead>
+                  <TableHead>Roll No</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Message</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date & Time</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {filteredLogs.map((log) => (
+                  <TableRow key={log.id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">{log.student}</TableCell>
+                    <TableCell>{log.rollNo}</TableCell>
+                    <TableCell>{log.phone}</TableCell>
+                    <TableCell>
+                      <p className="text-sm text-gray-600 max-w-md truncate">
+                        {log.message}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className="rounded-full flex items-center gap-1.5 w-fit"
+                        style={getStatusColor(log.status)}
+                      >
+                        {getStatusIcon(log.status)}
+                        {log.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <p className="font-medium text-gray-900">{log.date}</p>
+                        <p className="text-gray-500">{log.time}</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </Card>
     </div>
   );

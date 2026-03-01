@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -19,80 +19,28 @@ import {
 } from './ui/select';
 import { Search, Plus, Upload, Edit, Trash2, Download } from 'lucide-react';
 import { Badge } from './ui/badge';
-
-const mockStudents = [
-  {
-    rollNo: 'CS2021001',
-    name: 'Rahul Sharma',
-    department: 'Computer Science',
-    year: '3rd Year',
-    phone: '+91 98765 43210',
-    status: 'Active',
-  },
-  {
-    rollNo: 'EC2021045',
-    name: 'Priya Patel',
-    department: 'Electronics',
-    year: '3rd Year',
-    phone: '+91 98765 43211',
-    status: 'Active',
-  },
-  {
-    rollNo: 'ME2021023',
-    name: 'Amit Kumar',
-    department: 'Mechanical',
-    year: '2nd Year',
-    phone: '+91 98765 43212',
-    status: 'Active',
-  },
-  {
-    rollNo: 'CS2021032',
-    name: 'Sneha Reddy',
-    department: 'Computer Science',
-    year: '3rd Year',
-    phone: '+91 98765 43213',
-    status: 'Active',
-  },
-  {
-    rollNo: 'EE2021056',
-    name: 'Arjun Singh',
-    department: 'Electrical',
-    year: '4th Year',
-    phone: '+91 98765 43214',
-    status: 'Active',
-  },
-  {
-    rollNo: 'CE2021012',
-    name: 'Kavya Nair',
-    department: 'Civil',
-    year: '2nd Year',
-    phone: '+91 98765 43215',
-    status: 'Inactive',
-  },
-  {
-    rollNo: 'CS2021087',
-    name: 'Vikram Joshi',
-    department: 'Computer Science',
-    year: '1st Year',
-    phone: '+91 98765 43216',
-    status: 'Active',
-  },
-  {
-    rollNo: 'EC2021078',
-    name: 'Anjali Verma',
-    department: 'Electronics',
-    year: '4th Year',
-    phone: '+91 98765 43217',
-    status: 'Active',
-  },
-];
+import { getStudents, Student } from '../api/apiClient';
 
 export function StudentManagement() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
 
-  const filteredStudents = mockStudents.filter((student) => {
+  useEffect(() => {
+    // Load students from the backend
+    const loadStudents = async () => {
+      setLoading(true);
+      const apiStudents = await getStudents();
+      setStudents(apiStudents || []);
+      setLoading(false);
+    };
+
+    loadStudents();
+  }, []);
+
+  const filteredStudents = students.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.rollNo.toLowerCase().includes(searchQuery.toLowerCase());
@@ -100,6 +48,19 @@ export function StudentManagement() {
     const matchesYear = selectedYear === 'all' || student.year === selectedYear;
     return matchesSearch && matchesDept && matchesYear;
   });
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Card className="p-6 rounded-xl shadow-sm">
+          <div className="animate-pulse space-y-4">
+            <div className="h-10 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-8 bg-gray-200 rounded w-full"></div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
