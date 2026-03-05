@@ -99,11 +99,28 @@ export function Reports() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                <SelectItem value="cs">Computer Science</SelectItem>
-                <SelectItem value="ec">Electronics</SelectItem>
-                <SelectItem value="me">Mechanical</SelectItem>
-                <SelectItem value="ce">Civil</SelectItem>
-                <SelectItem value="ee">Electrical</SelectItem>
+                {/* Core Engineering Departments */}
+                <SelectItem value="Computer Science and Engineering">CSE (Core)</SelectItem>
+                <SelectItem value="Electronics and Communication Engineering">ECE</SelectItem>
+                <SelectItem value="Electrical and Electronics Engineering">EEE</SelectItem>
+                <SelectItem value="Mechanical Engineering">ME</SelectItem>
+                <SelectItem value="Civil Engineering">CE</SelectItem>
+                <SelectItem value="Information Technology">IT</SelectItem>
+                {/* New / Specialized Technology Departments */}
+                <SelectItem value="Artificial Intelligence & Data Science">AI & Data Science</SelectItem>
+                <SelectItem value="CSE-AI">CSE - Artificial Intelligence (Special)</SelectItem>
+                <SelectItem value="CSE-DS">CSE - Data Science (Special)</SelectItem>
+                <SelectItem value="CSE-CS">CSE - Cyber Security (Special)</SelectItem>
+                <SelectItem value="Electronics and Computer Engineering">ECM</SelectItem>
+                {/* Other Academic Departments */}
+                <SelectItem value="Engineering & Applied Sciences">Eng. & Applied Sciences</SelectItem>
+                {/* Postgraduate Departments */}
+                <SelectItem value="Master of Business Administration">MBA</SelectItem>
+                <SelectItem value="Master of Computer Applications">MCA</SelectItem>
+                <SelectItem value="M.Tech - Computer Science">M.Tech - CSE</SelectItem>
+                <SelectItem value="M.Tech - Electronics">M.Tech - Electronics</SelectItem>
+                <SelectItem value="M.Tech - AI & Machine Learning">M.Tech - AI & ML</SelectItem>
+                <SelectItem value="M.Tech - Information Technology">M.Tech - IT</SelectItem>
               </SelectContent>
             </Select>
           </div>

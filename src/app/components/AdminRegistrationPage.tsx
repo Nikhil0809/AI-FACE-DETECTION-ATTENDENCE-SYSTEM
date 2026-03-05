@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { ArrowLeft, Lock, Mail, User, AlertCircle } from 'lucide-react';
-import { apiClient } from '../api/apiClient';
+import { apiClient, getDepartments, Department } from '../api/apiClient';
 
 interface AdminRegistrationPageProps {
   onRegistrationComplete?: () => void;
@@ -17,11 +17,23 @@ export function AdminRegistrationPage({ onRegistrationComplete, onBackToLogin }:
     email: '',
     password: '',
     confirmPassword: '',
-    department: 'Administration',
+    departmentId: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loadingDepts, setLoadingDepts] = useState(true);
+
+  // Load departments on mount
+  useEffect(() => {
+    const loadDepartments = async () => {
+      const depts = await getDepartments();
+      setDepartments(depts);
+      setLoadingDepts(false);
+    };
+    loadDepartments();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -32,7 +44,7 @@ export function AdminRegistrationPage({ onRegistrationComplete, onBackToLogin }:
   };
 
   const validateForm = () => {
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword || !formData.departmentId) {
       setError('All fields are required');
       return false;
     }
@@ -65,7 +77,7 @@ export function AdminRegistrationPage({ onRegistrationComplete, onBackToLogin }:
       email: formData.email,
       password: formData.password,
       name: formData.name,
-      department: formData.department,
+      departmentId: parseInt(formData.departmentId),
     });
 
     if (result.status === 'success') {
@@ -153,16 +165,21 @@ export function AdminRegistrationPage({ onRegistrationComplete, onBackToLogin }:
             </Label>
             <select
               id="department"
-              name="department"
-              value={formData.department}
+              name="departmentId"
+              value={formData.departmentId}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-              disabled={loading}
+              disabled={loading || loadingDepts}
+              required
             >
-              <option value="Administration">Administration</option>
-              <option value="Management">Management</option>
-              <option value="IT">IT</option>
-              <option value="HR">Human Resources</option>
+              <option value="">
+                {loadingDepts ? 'Loading departments...' : 'Select Department'}
+              </option>
+              {departments.map(dept => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.specialization ? `${dept.name} (${dept.specialization})` : dept.name}
+                </option>
+              ))}
             </select>
           </div>
 

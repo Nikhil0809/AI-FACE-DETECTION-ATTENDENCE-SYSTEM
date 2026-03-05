@@ -1,8 +1,15 @@
--- Database initialization script for Enterprise AI Attendance System
--- Run this script in PostgreSQL with pgvector extension enabled
+-- Enhanced Database Schema for Enterprise AI Attendance System
+-- Creates fresh tables with proper structure including departments
 
 -- Create extension for vector support
 CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Drop old tables if they exist (backup your data first!)
+DROP TABLE IF EXISTS attendance CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS faculty CASCADE;
+DROP TABLE IF EXISTS sections CASCADE;
+DROP TABLE IF EXISTS departments CASCADE;
 
 -- Create departments table
 CREATE TABLE IF NOT EXISTS departments (
@@ -23,7 +30,7 @@ CREATE TABLE IF NOT EXISTS sections (
     UNIQUE(name, department_id)
 );
 
--- Create users table (for students with face recognition)
+-- Create users table (students with face recognition)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     roll_number VARCHAR(50) UNIQUE NOT NULL,
@@ -36,7 +43,7 @@ CREATE TABLE IF NOT EXISTS users (
     is_active BOOLEAN DEFAULT true
 );
 
--- Create faculty table
+-- Create faculty table (includes admins)
 CREATE TABLE IF NOT EXISTS faculty (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -118,7 +125,7 @@ ON CONFLICT (name, specialization) DO NOTHING;
 
 -- Insert sections for each department (A through G - 7 default sections)
 INSERT INTO sections (name, department_id) 
-SELECT chr(section_num), d.id
-FROM generate_series(65, 71) AS section_num,
-     (SELECT DISTINCT id FROM departments) AS d
+SELECT chr(code), d.id
+FROM (SELECT generate_series(65, 71) AS code) AS letters,
+      (SELECT DISTINCT id FROM departments) AS d
 ON CONFLICT DO NOTHING;

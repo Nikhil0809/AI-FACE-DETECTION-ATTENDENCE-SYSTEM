@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
-import { registerFacultyMember, RegisterResponse } from '../api/apiClient';
+import { registerFacultyMember, RegisterResponse, getDepartments, Department } from '../api/apiClient';
 import { GraduationCap, ArrowLeft } from 'lucide-react';
 
 interface FacultyRegistrationPageProps {
@@ -17,14 +17,26 @@ export function FacultyRegistrationPage({
 }: FacultyRegistrationPageProps) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loadingDepts, setLoadingDepts] = useState(true);
 
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
     name: '',
-    department: '',
+    departmentId: '',
   });
+
+  // Load departments on mount
+  useEffect(() => {
+    const loadDepartments = async () => {
+      const depts = await getDepartments();
+      setDepartments(depts);
+      setLoadingDepts(false);
+    };
+    loadDepartments();
+  }, []);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -33,7 +45,7 @@ export function FacultyRegistrationPage({
   };
 
   const validateForm = (): boolean => {
-    if (!formData.email || !formData.password || !formData.name || !formData.department) {
+    if (!formData.email || !formData.password || !formData.name || !formData.departmentId) {
       setMessage({ type: 'error', text: 'Please fill all fields' });
       return false;
     }
@@ -68,7 +80,7 @@ export function FacultyRegistrationPage({
       email: formData.email,
       password: formData.password,
       name: formData.name,
-      department: formData.department,
+      departmentId: parseInt(formData.departmentId),
     });
 
     if (response.status === 'success') {
@@ -107,11 +119,10 @@ export function FacultyRegistrationPage({
         {/* Messages */}
         {message && (
           <div
-            className={`mb-6 p-4 rounded-lg ${
-              message.type === 'success'
+            className={`mb-6 p-4 rounded-lg ${message.type === 'success'
                 ? 'bg-green-50 text-green-800 border border-green-200'
                 : 'bg-red-50 text-red-800 border border-red-200'
-            }`}
+              }`}
           >
             {message.text}
           </div>
@@ -150,18 +161,22 @@ export function FacultyRegistrationPage({
             <Label htmlFor="department">Department</Label>
             <select
               id="department"
-              name="department"
-              value={formData.department}
+              name="departmentId"
+              value={formData.departmentId}
               onChange={handleFormChange}
               className="mt-1.5 w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
               style={{ borderColor: '#E5E7EB' }}
+              required
+              disabled={loadingDepts}
             >
-              <option value="">Select Department</option>
-              <option value="Computer Science">Computer Science</option>
-              <option value="Electronics">Electronics</option>
-              <option value="Mechanical">Mechanical</option>
-              <option value="Civil">Civil</option>
-              <option value="Electrical">Electrical</option>
+              <option value="">
+                {loadingDepts ? 'Loading departments...' : 'Select Department'}
+              </option>
+              {departments.map(dept => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.specialization ? `${dept.name} (${dept.specialization})` : dept.name}
+                </option>
+              ))}
             </select>
           </div>
 

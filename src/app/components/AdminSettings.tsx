@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { AlertCircle, Trash2, RotateCcw, Database } from 'lucide-react';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { AlertCircle, Trash2, RotateCcw, Database, Clock, Users, Edit2 } from 'lucide-react';
 import { apiClient } from '../api/apiClient';
 
 export function AdminSettings() {
@@ -9,6 +11,24 @@ export function AdminSettings() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
+  
+  // Attendance Session state
+  const [showSessionForm, setShowSessionForm] = useState(false);
+  const [sessionForm, setSessionForm] = useState({
+    name: '',
+    departmentId: '',
+    startTime: '',
+    endTime: '',
+    date: '',
+  });
+  
+  // Student Management state
+  const [showStudentForm, setShowStudentForm] = useState(false);
+  const [studentForm, setStudentForm] = useState({
+    studentId: '',
+    name: '',
+    phoneNumber: '',
+  });
 
   const handleDeleteStudents = async () => {
     if (confirmAction !== 'delete-students') {
@@ -69,6 +89,90 @@ export function AdminSettings() {
     }
     setLoading(false);
   };
+
+  const handleCreateSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionForm.name || !sessionForm.departmentId || !sessionForm.startTime || !sessionForm.endTime || !sessionForm.date) {
+      setError('Please fill all session fields');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    const result = await apiClient.createAttendanceSession(
+      sessionForm.name,
+      parseInt(sessionForm.departmentId),
+      sessionForm.startTime,
+      sessionForm.endTime,
+      sessionForm.date,
+      1  // Default admin user ID
+    );
+
+    if (result.status === 'success') {
+      setSuccess('✓ Attendance session created successfully!');
+      setSessionForm({ name: '', departmentId: '', startTime: '', endTime: '', date: '' });
+      setShowSessionForm(false);
+    } else {
+      setError(result.message || 'Failed to create session');
+    }
+    setLoading(false);
+  };
+
+  const handleUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentForm.studentId || !studentForm.name) {
+      setError('Please fill student fields');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    const result = await apiClient.updateStudent(
+      parseInt(studentForm.studentId),
+      studentForm.name,
+      studentForm.phoneNumber || undefined
+    );
+
+    if (result.status === 'success') {
+      setSuccess('✓ Student information updated successfully!');
+      setStudentForm({ studentId: '', name: '', phoneNumber: '' });
+      setShowStudentForm(false);
+    } else {
+      setError(result.message || 'Failed to update student');
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!studentForm.studentId) {
+      setError('Please enter student ID');
+      return;
+    }
+
+    if (confirmAction !== 'delete-student') {
+      setConfirmAction('delete-student');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    const result = await apiClient.deleteStudent(parseInt(studentForm.studentId));
+    if (result.status === 'success') {
+      setSuccess('✓ Student deleted successfully!');
+      setConfirmAction(null);
+      setStudentForm({ studentId: '', name: '', phoneNumber: '' });
+      setShowStudentForm(false);
+    } else {
+      setError(result.message || 'Failed to delete student');
+    }
+    setLoading(false);
+  }
 
   const handleCancel = () => {
     setConfirmAction(null);
@@ -236,7 +340,192 @@ export function AdminSettings() {
         </div>
       </Card>
 
-      {/* Information Box */}
+      {/* Attendance Sessions Management */}
+      <Card className="p-6 rounded-xl shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <Clock className="w-6 h-6" style={{ color: '#1E3A8A' }} />
+          <h3 className="text-lg font-bold" style={{ color: '#1E3A8A' }}>
+            Attendance Sessions
+          </h3>
+        </div>
+
+        {showSessionForm ? (
+          <form onSubmit={handleCreateSession} className="space-y-4">
+            <div>
+              <Label>Session Name</Label>
+              <Input
+                type="text"
+                placeholder="e.g., Morning Session"
+                value={sessionForm.name}
+                onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+
+            <div>
+              <Label>Department ID</Label>
+              <Input
+                type="number"
+                placeholder="Enter department ID"
+                value={sessionForm.departmentId}
+                onChange={(e) => setSessionForm({ ...sessionForm, departmentId: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Start Time (HH:MM)</Label>
+                <Input
+                  type="time"
+                  value={sessionForm.startTime}
+                  onChange={(e) => setSessionForm({ ...sessionForm, startTime: e.target.value })}
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label>End Time (HH:MM)</Label>
+                <Input
+                  type="time"
+                  value={sessionForm.endTime}
+                  onChange={(e) => setSessionForm({ ...sessionForm, endTime: e.target.value })}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={sessionForm.date}
+                onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                className="flex-1 bg-green-600 text-white hover:bg-green-700"
+                disabled={loading}
+              >
+                Create Session
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowSessionForm(false)}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Button
+            onClick={() => setShowSessionForm(true)}
+            className="w-full bg-blue-600 text-white hover:bg-blue-700"
+          >
+            + Create New Attendance Session
+          </Button>
+        )}
+      </Card>
+
+      {/* Student Data Management */}
+      <Card className="p-6 rounded-xl shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <Users className="w-6 h-6" style={{ color: '#1E3A8A' }} />
+          <h3 className="text-lg font-bold" style={{ color: '#1E3A8A' }}>
+            Student Management
+          </h3>
+        </div>
+
+        {showStudentForm ? (
+          <form className="space-y-4">
+            <div>
+              <Label>Student ID</Label>
+              <Input
+                type="number"
+                placeholder="Enter student ID"
+                value={studentForm.studentId}
+                onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+
+            <div>
+              <Label>Student Name</Label>
+              <Input
+                type="text"
+                placeholder="Enter student name"
+                value={studentForm.name}
+                onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+
+            <div>
+              <Label>Phone Number</Label>
+              <Input
+                type="tel"
+                placeholder="Enter phone number (optional)"
+                value={studentForm.phoneNumber}
+                onChange={(e) => setStudentForm({ ...studentForm, phoneNumber: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleUpdateStudent}
+                className="flex-1 bg-green-600 text-white hover:bg-green-700"
+                disabled={loading}
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                Update Student
+              </Button>
+              <Button
+                onClick={handleDeleteStudent}
+                className={`flex-1 text-white font-medium transition-all ${
+                  confirmAction === 'delete-student'
+                    ? 'bg-red-700 hover:bg-red-800'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+                disabled={loading}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {confirmAction === 'delete-student' ? 'Confirm?' : 'Delete'}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setShowStudentForm(false);
+                  setConfirmAction(null);
+                }}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+            </div>
+
+            {confirmAction === 'delete-student' && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded">
+                <p className="text-sm text-red-700">Are you sure you want to delete this student?</p>
+              </div>
+            )}
+          </form>
+        ) : (
+          <Button
+            onClick={() => setShowStudentForm(true)}
+            className="w-full bg-blue-600 text-white hover:bg-blue-700"
+          >
+            + Manage Student Data
+          </Button>
+        )}
+      </Card>
       <Card className="p-6 rounded-xl shadow-sm bg-blue-50 border border-blue-200">
         <h4 className="font-medium text-gray-900 mb-3">Important Information</h4>
         <ul className="text-sm text-gray-700 space-y-2">

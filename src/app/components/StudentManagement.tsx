@@ -25,7 +25,8 @@ export function StudentManagement() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDept, setSelectedDept] = useState('all');
+  const [selectedBranch, setSelectedBranch] = useState('all');
+  const [selectedSection, setSelectedSection] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
 
   useEffect(() => {
@@ -44,9 +45,10 @@ export function StudentManagement() {
     const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.rollNo.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDept = selectedDept === 'all' || student.department === selectedDept;
+    const matchesBranch = selectedBranch === 'all' || student.branch === selectedBranch;
+    const matchesSection = selectedSection === 'all' || student.section === selectedSection;
     const matchesYear = selectedYear === 'all' || student.year === selectedYear;
-    return matchesSearch && matchesDept && matchesYear;
+    return matchesSearch && matchesBranch && matchesSection && matchesYear;
   });
 
   if (loading) {
@@ -79,18 +81,48 @@ export function StudentManagement() {
             />
           </div>
 
-          {/* Department Filter */}
-          <Select value={selectedDept} onValueChange={setSelectedDept}>
+          {/* Branch Filter */}
+          <Select value={selectedBranch} onValueChange={setSelectedBranch}>
             <SelectTrigger className="w-full lg:w-48">
-              <SelectValue placeholder="Department" />
+              <SelectValue placeholder="Branch" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Departments</SelectItem>
-              <SelectItem value="Computer Science">Computer Science</SelectItem>
-              <SelectItem value="Electronics">Electronics</SelectItem>
-              <SelectItem value="Mechanical">Mechanical</SelectItem>
-              <SelectItem value="Civil">Civil</SelectItem>
-              <SelectItem value="Electrical">Electrical</SelectItem>
+              {/* Core Engineering Departments */}
+              <SelectItem value="Computer Science and Engineering">CSE (Core)</SelectItem>
+              <SelectItem value="Electronics and Communication Engineering">ECE</SelectItem>
+              <SelectItem value="Electrical and Electronics Engineering">EEE</SelectItem>
+              <SelectItem value="Mechanical Engineering">ME</SelectItem>
+              <SelectItem value="Civil Engineering">CE</SelectItem>
+              <SelectItem value="Information Technology">IT</SelectItem>
+              {/* New / Specialized Technology Departments */}
+              <SelectItem value="Artificial Intelligence & Data Science">AI & Data Science</SelectItem>
+              <SelectItem value="CSE-AI">CSE - Artificial Intelligence (Special)</SelectItem>
+              <SelectItem value="CSE-DS">CSE - Data Science (Special)</SelectItem>
+              <SelectItem value="CSE-CS">CSE - Cyber Security (Special)</SelectItem>
+              <SelectItem value="Electronics and Computer Engineering">ECM</SelectItem>
+              {/* Other Academic Departments */}
+              <SelectItem value="Engineering & Applied Sciences">Eng. & Applied Sciences</SelectItem>
+              {/* Postgraduate Departments */}
+              <SelectItem value="Master of Business Administration">MBA</SelectItem>
+              <SelectItem value="Master of Computer Applications">MCA</SelectItem>
+              <SelectItem value="M.Tech - Computer Science">M.Tech - CSE</SelectItem>
+              <SelectItem value="M.Tech - Electronics">M.Tech - Electronics</SelectItem>
+              <SelectItem value="M.Tech - AI & Machine Learning">M.Tech - AI & ML</SelectItem>
+              <SelectItem value="M.Tech - Information Technology">M.Tech - IT</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Section Filter */}
+          <Select value={selectedSection} onValueChange={setSelectedSection}>
+            <SelectTrigger className="w-full lg:w-48">
+              <SelectValue placeholder="Section" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sections</SelectItem>
+              {Array.from({ length: 14 }, (_, i) => String.fromCharCode(65 + i)).map(char => (
+                <SelectItem key={char} value={char}>Section {char}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -152,7 +184,8 @@ export function StudentManagement() {
               <TableRow>
                 <TableHead>Roll No</TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead>Department</TableHead>
+                <TableHead>Branch</TableHead>
+                <TableHead>Section</TableHead>
                 <TableHead>Year</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Status</TableHead>
@@ -164,7 +197,8 @@ export function StudentManagement() {
                 <TableRow key={student.rollNo} className="hover:bg-gray-50">
                   <TableCell className="font-medium">{student.rollNo}</TableCell>
                   <TableCell>{student.name}</TableCell>
-                  <TableCell>{student.department}</TableCell>
+                  <TableCell>{student.branch}</TableCell>
+                  <TableCell>{student.section}</TableCell>
                   <TableCell>{student.year}</TableCell>
                   <TableCell>{student.phone}</TableCell>
                   <TableCell>
