@@ -31,7 +31,11 @@ import { Badge } from './ui/badge';
 import { getStudents, Student, updateStudent, deleteStudent } from '../api/apiClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function StudentManagement() {
+interface StudentManagementProps {
+  onAddStudent: () => void;
+}
+
+export function StudentManagement({ onAddStudent }: StudentManagementProps) {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,8 +74,7 @@ export function StudentManagement() {
 
   // Handler functions
   const handleAddStudent = () => {
-    // For now, show alert - in real app, navigate to registration or open modal
-    alert('Add Student functionality - navigate to student registration page');
+    onAddStudent();
   };
 
   const handleCsvUpload = () => {
@@ -153,7 +156,7 @@ export function StudentManagement() {
     );
   }
 
-  const containerVariants = {
+  const containerVariants: any = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
@@ -161,7 +164,7 @@ export function StudentManagement() {
     }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
   };
@@ -322,8 +325,8 @@ export function StudentManagement() {
                         <Badge
                           variant="outline"
                           className={`rounded-full px-3 py-1 font-semibold ${student.status === 'Active'
-                              ? 'bg-accent/10 border-accent/20 text-accent-foreground'
-                              : 'bg-destructive/10 border-destructive/20 text-destructive'
+                            ? 'bg-accent/10 border-accent/20 text-accent-foreground'
+                            : 'bg-destructive/10 border-destructive/20 text-destructive'
                             }`}
                         >
                           {student.status || 'Active'}

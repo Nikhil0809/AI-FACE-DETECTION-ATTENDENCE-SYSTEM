@@ -87,7 +87,14 @@ export default function App() {
         // Show FacultyDashboard for faculty, regular Dashboard for admin
         return userRole === 'faculty' ? <FacultyDashboard /> : <Dashboard />;
       case 'students':
-        return <StudentManagement />;
+        return <StudentManagement onAddStudent={() => setActivePage('register-student-internal')} />;
+      case 'register-student-internal':
+        return (
+          <RegistrationPage
+            onRegistrationComplete={() => setActivePage('students')}
+            onBackToLogin={() => setActivePage('students')}
+          />
+        );
       case 'attendance':
         return <AttendanceMonitoring />;
       case 'reports':
