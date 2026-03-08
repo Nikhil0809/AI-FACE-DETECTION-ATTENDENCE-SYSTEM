@@ -1,6 +1,5 @@
 from .database import get_db_connection
 from .config import MATCH_THRESHOLD
-import hashlib
 from datetime import datetime
 
 def insert_user(roll_number, name, department, embedding):
@@ -90,24 +89,17 @@ def insert_attendance(user_id):
     conn.close()
 
 
-def hash_password(password: str) -> str:
-    """Hash password using SHA256"""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-
 def insert_faculty(email: str, password: str, name: str, department: str):
     """Register a new faculty member"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        hashed_password = hash_password(password)
-        
+
         cursor.execute("""
-            INSERT INTO faculty (email, password_hash, name, department, created_at)
+            INSERT INTO faculty (email, password, name, department, created_at)
             VALUES (%s, %s, %s, %s, %s)
-        """, (email, hashed_password, name, department, datetime.now()))
-        
+        """, (email, password, name, department, datetime.now()))
+
         conn.commit()
         cursor.close()
         conn.close()
@@ -122,24 +114,23 @@ def authenticate_faculty(email: str, password: str):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("""
-            SELECT id, name, email, department, password_hash, created_at
+            SELECT id, name, email, department, password, created_at
             FROM faculty
             WHERE email = %s
         """, (email,))
-        
+
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        
+
         if not result:
             return None
-        
-        stored_hash = result[4]
-        provided_hash = hash_password(password)
-        
-        if stored_hash == provided_hash:
+
+        stored_password = result[4]
+
+        if stored_password == password:
             return {
                 "id": result[0],
                 "name": result[1],
@@ -147,7 +138,7 @@ def authenticate_faculty(email: str, password: str):
                 "department": result[3],
                 "role": "faculty"
             }
-        
+
         return None
     except Exception as e:
         print(f"Error authenticating faculty: {e}")
@@ -158,11 +149,11 @@ def authenticate_admin(email: str, password: str):
     """Authenticate admin user"""
     # Hardcoded admin credentials for initial setup
     admin_credentials = {
-        "admin@university.edu": hash_password("admin123")
+        "admin@university.edu": "admin123"
     }
-    
+
     if email in admin_credentials:
-        if hash_password(password) == admin_credentials[email]:
+        if password == admin_credentials[email]:
             return {
                 "id": 1,
                 "name": "Admin",
@@ -241,14 +232,12 @@ def insert_admin(email: str, password: str, name: str, department: str):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        hashed_password = hash_password(password)
-        
+
         cursor.execute("""
-            INSERT INTO faculty (email, password_hash, name, department, created_at, role)
+            INSERT INTO faculty (email, password, name, department, created_at, role)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (email, hashed_password, name, department, datetime.now(), 'admin'))
-        
+        """, (email, password, name, department, datetime.now(), 'admin'))
+
         conn.commit()
         cursor.close()
         conn.close()

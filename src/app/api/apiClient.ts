@@ -72,6 +72,9 @@ export interface Student {
   department: string;
   section: string;
   status?: string;
+  year?: string;
+  phone?: string;
+  branch?: string;
 }
 
 export interface Faculty {
@@ -259,7 +262,7 @@ export async function registerFacultyMember(payload: FacultyRegisterPayload): Pr
   formData.append('email', payload.email);
   formData.append('password', payload.password);
   formData.append('name', payload.name);
-  formData.append('department_id', payload.departmentId.toString());
+  formData.append('department', payload.departmentId.toString());
 
   try {
     const response = await fetch(`${API_BASE_URL}/register-faculty`, {
@@ -286,7 +289,7 @@ export async function registerAdmin(payload: AdminRegisterPayload): Promise<Regi
   formData.append('email', payload.email);
   formData.append('password', payload.password);
   formData.append('name', payload.name);
-  formData.append('department_id', payload.departmentId.toString());
+  formData.append('department', payload.departmentId.toString());
 
   try {
     const response = await fetch(`${API_BASE_URL}/register-admin`, {

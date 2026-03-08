@@ -84,6 +84,14 @@ export function RegistrationPage({ onRegistrationComplete, onBackToLogin }: Regi
       setMessage({ type: 'error', text: 'Please fill all fields' });
       return;
     }
+
+    // Phone number validation (Indian format)
+    const phoneRegex = /^(\+91[-\s]?)?[6-9]\d{9}$/;
+    if (!phoneRegex.test(formData.phoneNumber.replace(/[-\s]/g, ''))) {
+      setMessage({ type: 'error', text: 'Please enter a valid phone number (10 digits starting with 6-9)' });
+      return;
+    }
+
     setStep('photo');
     setMessage(null);
   };

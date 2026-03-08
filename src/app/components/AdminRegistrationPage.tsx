@@ -52,14 +52,25 @@ export function AdminRegistrationPage({ onRegistrationComplete, onBackToLogin }:
       setError('Password must be at least 6 characters');
       return false;
     }
+
+    // Password strength validation
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (!passwordRegex.test(formData.password)) {
+      setError('Password must contain at least one uppercase letter, one lowercase letter, and one number');
+      return false;
+    }
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return false;
     }
-    if (!formData.email.includes('@')) {
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
       setError('Please enter a valid email address');
       return false;
     }
+
     return true;
   };
 

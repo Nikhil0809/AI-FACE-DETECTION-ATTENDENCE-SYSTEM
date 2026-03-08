@@ -1,22 +1,22 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-import base64
-import json
-import asyncio
 from typing import List
+import json
 
 from app.ai_engine import extract_face_embedding
 from app.models import (
-    insert_user, get_all_users, find_nearest_user, insert_attendance,
-    insert_faculty, authenticate_faculty, authenticate_admin, get_all_faculty,
-    get_attendance_records, insert_admin, delete_all_students, delete_all_attendance,
-    reset_database
+    insert_user, get_all_users, insert_attendance,
+    insert_faculty, authenticate_faculty, authenticate_admin,
+    get_all_faculty, get_attendance_records, insert_admin,
+    delete_all_students, delete_all_attendance, reset_database
 )
 from app.worker import process_frame
 
 app = FastAPI(title="Enterprise AI Attendance System")
 
-# Allow React frontend to connect
+# -----------------------------
+# CORS CONFIGURATION
+# -----------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,7 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# WebSocket connection manager for real-time updates
+
+# -----------------------------
+# WEBSOCKET CONNECTION MANAGER
+# -----------------------------
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -35,50 +38,101 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+        for connection in self.active_connections.copy():
             try:
                 await connection.send_json(message)
-            except Exception as e:
-                print(f"Error broadcasting message: {e}")
+            except:
+                self.active_connections.remove(connection)
 
 
 manager = ConnectionManager()
 
 
+# -----------------------------
+# HEALTH CHECK
+# -----------------------------
 @app.get("/")
 def health_check():
     return {"status": "Backend Running 🚀"}
 
 
-# -------------------------
+# -----------------------------
+# DEPARTMENTS API
+# -----------------------------
+@app.get("/departments")
+def get_departments():
+    departments = [
+        # Core Engineering Departments
+        {"id": 1, "name": "Computer Science and Engineering (CSE)"},
+        {"id": 2, "name": "Electronics and Communication Engineering (ECE)"},
+        {"id": 3, "name": "Electrical and Electronics Engineering (EEE)"},
+        {"id": 4, "name": "Mechanical Engineering (ME)"},
+        {"id": 5, "name": "Civil Engineering"},
+        {"id": 6, "name": "Information Technology (IT)"},
+        # New / Specialized Technology Departments
+        {"id": 7, "name": "Artificial Intelligence & Data Science (AI & DS)"},
+        {"id": 8, "name": "CSE – Artificial Intelligence"},
+        {"id": 9, "name": "CSE – Data Science"},
+        {"id": 10, "name": "CSE – Cyber Security"},
+        {"id": 11, "name": "Electronics and Computer Engineering (ECM)"},
+        # Other Academic Departments
+        {"id": 12, "name": "Engineering & Applied Sciences (Mathematics, Physics, Chemistry, English, etc.)"},
+        # Postgraduate Departments
+        {"id": 13, "name": "MBA (Master of Business Administration)"},
+        {"id": 14, "name": "MCA (Master of Computer Applications)"},
+        {"id": 15, "name": "M.Tech - Computer Science"},
+        {"id": 16, "name": "M.Tech - Electronics"},
+        {"id": 17, "name": "M.Tech - AI & Machine Learning"},
+        {"id": 18, "name": "M.Tech - Information Technology"},
+    ]
+    return {"status": "success", "departments": departments}
+
+# -----------------------------
+# SECTIONS API (Default 7 sections)
+# -----------------------------
+@app.get("/departments/{department_id}/sections")
+def get_sections(department_id: int):
+    sections = [
+        {"id": i+1, "name": chr(65+i)} for i in range(7)
+    ]
+    return {"status": "success", "sections": sections}
+
+
+# -----------------------------
 # AUTHENTICATION
-# -------------------------
+# -----------------------------
 @app.post("/login")
-async def login(email: str = Form(...), password: str = Form(...), role: str = Form(...)):
-    """
-    Authenticate user (admin or faculty)
-    """
-    if role == "admin":
-        user = authenticate_admin(email, password)
+async def login(
+    email: str = Form(...),
+    password: str = Form(...),
+    role: str = Form(...)
+):
+    try:
+        if role == "admin":
+            user = authenticate_admin(email, password)
+
+        elif role == "faculty":
+            user = authenticate_faculty(email, password)
+
+        else:
+            return {"status": "error", "message": "Invalid role"}
+
         if user:
             return {"status": "success", "user": user}
-        return {"status": "error", "message": "Invalid admin credentials"}
-    
-    elif role == "faculty":
-        user = authenticate_faculty(email, password)
-        if user:
-            return {"status": "success", "user": user}
-        return {"status": "error", "message": "Invalid faculty credentials"}
-    
-    return {"status": "error", "message": "Invalid role"}
+
+        return {"status": "error", "message": "Invalid credentials"}
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
-# -------------------------
+# -----------------------------
 # FACULTY MANAGEMENT
-# -------------------------
+# -----------------------------
 @app.post("/register-faculty")
 async def register_faculty(
     email: str = Form(...),
@@ -86,168 +140,198 @@ async def register_faculty(
     name: str = Form(...),
     department: str = Form(...)
 ):
-    """Register a new faculty member"""
     try:
-        if insert_faculty(email, password, name, department):
+        success = insert_faculty(email, password, name, department)
+
+        if success:
             return {"status": "success", "message": "Faculty registered successfully"}
-        return {"status": "error", "message": "Faculty with this email already exists"}
+
+        return {"status": "error", "message": "Faculty already exists"}
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
 @app.post("/register-admin")
-async def register_admin_endpoint(
+async def register_admin(
     email: str = Form(...),
     password: str = Form(...),
     name: str = Form(...),
     department: str = Form(...)
 ):
-    """Register a new admin"""
     try:
-        if insert_admin(email, password, name, department):
+        success = insert_admin(email, password, name, department)
+
+        if success:
             return {"status": "success", "message": "Admin registered successfully"}
-        return {"status": "error", "message": "Admin with this email already exists"}
+
+        return {"status": "error", "message": "Admin already exists"}
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
 @app.get("/faculty")
 def get_faculty():
-    """Get all faculty members"""
     faculty = get_all_faculty()
     return {"status": "success", "faculty": faculty}
 
 
-# -------------------------
-# USER REGISTRATION (Students)
-# -------------------------
+# -----------------------------
+# STUDENT REGISTRATION
+# -----------------------------
 @app.post("/register")
-async def register_user(
+async def register_student(
     roll_number: str = Form(...),
     name: str = Form(...),
     department: str = Form(...),
     file: UploadFile = File(...)
 ):
-    image_bytes = await file.read()
-    embedding = extract_face_embedding(image_bytes)
+    try:
+        image_bytes = await file.read()
+        embedding = extract_face_embedding(image_bytes)
 
-    if embedding is None:
-        return {"status": "error", "message": "No face detected"}
+        if embedding is None:
+            return {"status": "error", "message": "No face detected"}
 
-    insert_user(roll_number, name, department, embedding)
+        insert_user(roll_number, name, department, embedding)
 
-    # Broadcast student registration event
-    await manager.broadcast({
-        "type": "student_registered",
-        "data": {
-            "rollNumber": roll_number,
-            "name": name,
-            "department": department
-        }
-    })
+        await manager.broadcast({
+            "type": "student_registered",
+            "data": {
+                "rollNumber": roll_number,
+                "name": name,
+                "department": department
+            }
+        })
 
-    return {"status": "success", "message": "User registered successfully"}
+        return {"status": "success", "message": "Student registered successfully"}
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/students")
 def get_students():
-    """Get all registered students"""
     students = get_all_users()
     return {"status": "success", "students": students}
 
 
-# -------------------------
-# REAL-TIME RECOGNITION
-# -------------------------
+# -----------------------------
+# FACE RECOGNITION
+# -----------------------------
 @app.post("/recognize")
-async def recognize(file: UploadFile = File(...)):
-    image_bytes = await file.read()
-    task = process_frame.delay(image_bytes)
-    return {"status": "processing", "task_id": task.id}
+async def recognize_face(file: UploadFile = File(...)):
+    try:
+        image_bytes = await file.read()
+        result = process_frame(image_bytes)
+
+        return {
+            "status": "success",
+            "result": result
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
-# -------------------------
+# -----------------------------
 # ATTENDANCE
-# -------------------------
+# -----------------------------
 @app.get("/attendance")
 def get_attendance(limit: int = 100):
-    """Get recent attendance records"""
     records = get_attendance_records(limit)
     return {"status": "success", "attendance": records}
 
 
 @app.post("/attendance/{student_id}")
 async def mark_attendance(student_id: int):
-    """Mark attendance for a student"""
     try:
         insert_attendance(student_id)
-        
-        # Broadcast attendance event
+
         await manager.broadcast({
             "type": "attendance_marked",
             "data": {"student_id": student_id}
         })
-        
+
         return {"status": "success", "message": "Attendance marked"}
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
-# -------------------------
+# -----------------------------
 # ADMIN OPERATIONS
-# -------------------------
+# -----------------------------
 @app.delete("/admin/delete-students")
-async def delete_students_endpoint():
-    """Delete all students from database (admin only)"""
+async def delete_students():
     try:
         if delete_all_students():
-            await manager.broadcast({"type": "database_reset", "target": "students"})
-            return {"status": "success", "message": "All students deleted successfully"}
-        return {"status": "error", "message": "Failed to delete students"}
+
+            await manager.broadcast({
+                "type": "database_reset",
+                "target": "students"
+            })
+
+            return {"status": "success", "message": "Students deleted"}
+
+        return {"status": "error", "message": "Delete failed"}
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
 @app.delete("/admin/delete-attendance")
-async def delete_attendance_endpoint():
-    """Delete all attendance records (admin only)"""
+async def delete_attendance():
     try:
         if delete_all_attendance():
-            await manager.broadcast({"type": "database_reset", "target": "attendance"})
-            return {"status": "success", "message": "All attendance records deleted successfully"}
-        return {"status": "error", "message": "Failed to delete attendance"}
+
+            await manager.broadcast({
+                "type": "database_reset",
+                "target": "attendance"
+            })
+
+            return {"status": "success", "message": "Attendance deleted"}
+
+        return {"status": "error", "message": "Delete failed"}
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
 @app.post("/admin/reset-database")
-async def reset_database_final():
-    """Reset entire database to initial state (admin only)"""
+async def reset_db():
     try:
         if reset_database():
-            await manager.broadcast({"type": "database_reset", "target": "all"})
-            return {"status": "success", "message": "Database reset successfully"}
-        return {"status": "error", "message": "Failed to reset database"}
+
+            await manager.broadcast({
+                "type": "database_reset",
+                "target": "all"
+            })
+
+            return {"status": "success", "message": "Database reset"}
+
+        return {"status": "error", "message": "Reset failed"}
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
-# -------------------------
-# WEBSOCKET - Real-time Updates
-# -------------------------
+# -----------------------------
+# WEBSOCKET ENDPOINT
+# -----------------------------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """
-    WebSocket endpoint for real-time attendance and registration updates
-    """
+
     await manager.connect(websocket)
+
     try:
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
-            
-            # Echo back or process message
+
             if message.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
+
     except WebSocketDisconnect:
         manager.disconnect(websocket)

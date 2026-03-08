@@ -60,8 +60,17 @@ export function FacultyRegistrationPage({
       return false;
     }
 
-    if (!formData.email.includes('@')) {
-      setMessage({ type: 'error', text: 'Please enter a valid email' });
+    // Password strength validation
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (!passwordRegex.test(formData.password)) {
+      setMessage({ type: 'error', text: 'Password must contain at least one uppercase letter, one lowercase letter, and one number' });
+      return false;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setMessage({ type: 'error', text: 'Please enter a valid email address' });
       return false;
     }
 

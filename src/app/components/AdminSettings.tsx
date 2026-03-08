@@ -5,12 +5,18 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { AlertCircle, Trash2, RotateCcw, Database, Clock, Users, Edit2 } from 'lucide-react';
 import { apiClient } from '../api/apiClient';
+import { ConfirmationDialog } from './ui/confirmation-dialog';
 
 export function AdminSettings() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [confirmAction, setConfirmAction] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
   
   // Attendance Session state
   const [showSessionForm, setShowSessionForm] = useState(false);
@@ -31,63 +37,69 @@ export function AdminSettings() {
   });
 
   const handleDeleteStudents = async () => {
-    if (confirmAction !== 'delete-students') {
-      setConfirmAction('delete-students');
-      return;
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Delete All Students',
+      description: 'Are you sure you want to delete all students and their face vectors? This action cannot be undone.',
+      onConfirm: async () => {
+        setLoading(true);
+        setError('');
+        setSuccess('');
 
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    const result = await apiClient.deleteAllStudents();
-    if (result.status === 'success') {
-      setSuccess('✓ All students deleted successfully!');
-      setConfirmAction(null);
-    } else {
-      setError(result.message || 'Failed to delete students');
-    }
-    setLoading(false);
+        const result = await apiClient.deleteAllStudents();
+        if (result.status === 'success') {
+          setSuccess('✓ All students deleted successfully!');
+          setConfirmDialog(null);
+        } else {
+          setError(result.message || 'Failed to delete students');
+        }
+        setLoading(false);
+      }
+    });
   };
 
   const handleDeleteAttendance = async () => {
-    if (confirmAction !== 'delete-attendance') {
-      setConfirmAction('delete-attendance');
-      return;
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Delete All Attendance Records',
+      description: 'Are you sure you want to delete all attendance records? This action cannot be undone.',
+      onConfirm: async () => {
+        setLoading(true);
+        setError('');
+        setSuccess('');
 
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    const result = await apiClient.deleteAllAttendance();
-    if (result.status === 'success') {
-      setSuccess('✓ All attendance records deleted successfully!');
-      setConfirmAction(null);
-    } else {
-      setError(result.message || 'Failed to delete attendance');
-    }
-    setLoading(false);
+        const result = await apiClient.deleteAllAttendance();
+        if (result.status === 'success') {
+          setSuccess('✓ All attendance records deleted successfully!');
+          setConfirmDialog(null);
+        } else {
+          setError(result.message || 'Failed to delete attendance');
+        }
+        setLoading(false);
+      }
+    });
   };
 
   const handleResetDatabase = async () => {
-    if (confirmAction !== 'reset-database') {
-      setConfirmAction('reset-database');
-      return;
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Reset Database',
+      description: 'Are you sure you want to reset the entire database? All data will be permanently lost.',
+      onConfirm: async () => {
+        setLoading(true);
+        setError('');
+        setSuccess('');
 
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    const result = await apiClient.resetDatabase();
-    if (result.status === 'success') {
-      setSuccess('✓ Database reset successfully! All data has been cleared.');
-      setConfirmAction(null);
-    } else {
-      setError(result.message || 'Failed to reset database');
-    }
-    setLoading(false);
+        const result = await apiClient.resetDatabase();
+        if (result.status === 'success') {
+          setSuccess('✓ Database reset successfully! All data has been cleared.');
+          setConfirmDialog(null);
+        } else {
+          setError(result.message || 'Failed to reset database');
+        }
+        setLoading(false);
+      }
+    });
   };
 
   const handleCreateSession = async (e: React.FormEvent) => {
@@ -153,26 +165,28 @@ export function AdminSettings() {
       return;
     }
 
-    if (confirmAction !== 'delete-student') {
-      setConfirmAction('delete-student');
-      return;
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Delete Student',
+      description: `Are you sure you want to delete student with ID ${studentForm.studentId}? This action cannot be undone.`,
+      onConfirm: async () => {
+        setLoading(true);
+        setError('');
+        setSuccess('');
 
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    const result = await apiClient.deleteStudent(parseInt(studentForm.studentId));
-    if (result.status === 'success') {
-      setSuccess('✓ Student deleted successfully!');
-      setConfirmAction(null);
-      setStudentForm({ studentId: '', name: '', phoneNumber: '' });
-      setShowStudentForm(false);
-    } else {
-      setError(result.message || 'Failed to delete student');
-    }
-    setLoading(false);
-  }
+        const result = await apiClient.deleteStudent(parseInt(studentForm.studentId));
+        if (result.status === 'success') {
+          setSuccess('✓ Student deleted successfully!');
+          setConfirmDialog(null);
+          setStudentForm({ studentId: '', name: '', phoneNumber: '' });
+          setShowStudentForm(false);
+        } else {
+          setError(result.message || 'Failed to delete student');
+        }
+        setLoading(false);
+      }
+    });
+  };
 
   const handleCancel = () => {
     setConfirmAction(null);
@@ -222,36 +236,13 @@ export function AdminSettings() {
               </div>
               <Button
                 onClick={handleDeleteStudents}
-                className={`px-4 py-2 rounded-lg text-white font-medium transition-all ${
-                  confirmAction === 'delete-students'
-                    ? 'bg-red-700 hover:bg-red-800'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
+                className="px-4 py-2 rounded-lg text-white font-medium transition-all bg-red-600 hover:bg-red-700"
                 disabled={loading}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                {confirmAction === 'delete-students' ? 'Confirm Delete?' : 'Delete Students'}
+                Delete Students
               </Button>
             </div>
-            {confirmAction === 'delete-students' && (
-              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded flex gap-2">
-                <Button
-                  onClick={handleCancel}
-                  variant="outline"
-                  className="flex-1"
-                  disabled={loading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleDeleteStudents}
-                  className="flex-1 bg-red-600 text-white hover:bg-red-700"
-                  disabled={loading}
-                >
-                  {loading ? 'Deleting...' : 'Yes, Delete All'}
-                </Button>
-              </div>
-            )}
           </div>
 
           {/* Delete Attendance */}
@@ -263,36 +254,13 @@ export function AdminSettings() {
               </div>
               <Button
                 onClick={handleDeleteAttendance}
-                className={`px-4 py-2 rounded-lg text-white font-medium transition-all ${
-                  confirmAction === 'delete-attendance'
-                    ? 'bg-yellow-700 hover:bg-yellow-800'
-                    : 'bg-yellow-600 hover:bg-yellow-700'
-                }`}
+                className="px-4 py-2 rounded-lg text-white font-medium transition-all bg-yellow-600 hover:bg-yellow-700"
                 disabled={loading}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                {confirmAction === 'delete-attendance' ? 'Confirm Delete?' : 'Delete Records'}
+                Delete Records
               </Button>
             </div>
-            {confirmAction === 'delete-attendance' && (
-              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded flex gap-2">
-                <Button
-                  onClick={handleCancel}
-                  variant="outline"
-                  className="flex-1"
-                  disabled={loading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleDeleteAttendance}
-                  className="flex-1 bg-yellow-600 text-white hover:bg-yellow-700"
-                  disabled={loading}
-                >
-                  {loading ? 'Deleting...' : 'Yes, Delete All'}
-                </Button>
-              </div>
-            )}
           </div>
 
           {/* Reset Database */}
@@ -306,36 +274,13 @@ export function AdminSettings() {
               </div>
               <Button
                 onClick={handleResetDatabase}
-                className={`px-4 py-2 rounded-lg text-white font-medium transition-all ${
-                  confirmAction === 'reset-database'
-                    ? 'bg-red-800 hover:bg-red-900'
-                    : 'bg-red-700 hover:bg-red-800'
-                }`}
+                className="px-4 py-2 rounded-lg text-white font-medium transition-all bg-red-700 hover:bg-red-800"
                 disabled={loading}
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
-                {confirmAction === 'reset-database' ? 'Confirm Reset?' : 'Reset Database'}
+                Reset Database
               </Button>
             </div>
-            {confirmAction === 'reset-database' && (
-              <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded flex gap-2">
-                <Button
-                  onClick={handleCancel}
-                  variant="outline"
-                  className="flex-1"
-                  disabled={loading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleResetDatabase}
-                  className="flex-1 bg-red-800 text-white hover:bg-red-900"
-                  disabled={loading}
-                >
-                  {loading ? 'Resetting...' : 'Yes, Reset Database'}
-                </Button>
-              </div>
-            )}
           </div>
         </div>
       </Card>
@@ -488,15 +433,11 @@ export function AdminSettings() {
               </Button>
               <Button
                 onClick={handleDeleteStudent}
-                className={`flex-1 text-white font-medium transition-all ${
-                  confirmAction === 'delete-student'
-                    ? 'bg-red-700 hover:bg-red-800'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
+                className="flex-1 text-white font-medium transition-all bg-red-600 hover:bg-red-700"
                 disabled={loading}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                {confirmAction === 'delete-student' ? 'Confirm?' : 'Delete'}
+                Delete
               </Button>
               <Button
                 variant="outline"
@@ -510,12 +451,6 @@ export function AdminSettings() {
                 Cancel
               </Button>
             </div>
-
-            {confirmAction === 'delete-student' && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded">
-                <p className="text-sm text-red-700">Are you sure you want to delete this student?</p>
-              </div>
-            )}
           </form>
         ) : (
           <Button
@@ -535,6 +470,19 @@ export function AdminSettings() {
           <li>✓ All operations are logged and cannot be undone</li>
         </ul>
       </Card>
+
+      {/* Confirmation Dialog */}
+      {confirmDialog && (
+        <ConfirmationDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) => setConfirmDialog(open ? confirmDialog : null)}
+          title={confirmDialog.title}
+          description={confirmDialog.description}
+          onConfirm={confirmDialog.onConfirm}
+          loading={loading}
+          variant="destructive"
+        />
+      )}
     </div>
   );
 }
