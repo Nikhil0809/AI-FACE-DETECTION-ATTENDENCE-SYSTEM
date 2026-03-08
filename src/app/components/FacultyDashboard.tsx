@@ -13,7 +13,6 @@ import {
   Square,
   Wifi,
   AlertCircle,
-  TrendingUp,
 } from 'lucide-react';
 import { Progress } from './ui/progress';
 import AttendanceCamera, { DetectionResult } from './AttendanceCamera';
@@ -39,7 +38,6 @@ export function FacultyDashboard() {
   const [sessionTime, setSessionTime] = useState(0);
   const [detectedStudents, setDetectedStudents] = useState<DetectedStudent[]>([]);
   const [currentDetection, setCurrentDetection] = useState<string | null>(null);
-  const [scanningAnimation, setScanningAnimation] = useState(0);
   const [allStudents, setAllStudents] = useState<StudentData[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
 
@@ -82,14 +80,6 @@ export function FacultyDashboard() {
     return () => clearInterval(interval);
   }, [isScanning]);
 
-  // Scanning animation
-  useEffect(() => {
-    if (!isScanning) return;
-    const interval = setInterval(() => {
-      setScanningAnimation((prev) => (prev + 1) % 100);
-    }, 50);
-    return () => clearInterval(interval);
-  }, [isScanning]);
 
   // When the camera component reports a result, add it to the list
   const handleCameraDetection = (data: DetectionResult) => {
@@ -136,7 +126,10 @@ export function FacultyDashboard() {
   };
 
   const totalExpected = allStudents.length;
-  const attendancePercentage = totalExpected > 0 ? (detectedStudents.length / totalExpected) * 100 : 0;
+  const matchedCount = detectedStudents.filter(s => s.status === 'matched').length;
+  const unknownCount = detectedStudents.filter(s => s.status === 'unknown').length;
+  const pendingCount = Math.max(0, totalExpected - matchedCount);
+  const attendancePercentage = totalExpected > 0 ? (matchedCount / totalExpected) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -203,7 +196,7 @@ export function FacultyDashboard() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-700">Session Progress</span>
               <span className="text-sm font-bold" style={{ color: '#1E3A8A' }}>
-                {detectedStudents.length}/{totalExpected} ({attendancePercentage.toFixed(0)}%)
+                {matchedCount}/{totalExpected} ({attendancePercentage.toFixed(0)}%)
               </span>
             </div>
             <Progress value={attendancePercentage} className="h-2" />
@@ -212,77 +205,55 @@ export function FacultyDashboard() {
       </Card>
 
       {/* Live Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-6 rounded-xl shadow-sm">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Expected */}
+        <Card className="p-5 rounded-xl shadow-sm">
           <div className="flex items-center gap-3">
-            <div
-              className="w-12 h-12 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: '#EEF2FF' }}
-            >
-              <Users className="w-6 h-6" style={{ color: '#1E3A8A' }} />
+            <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EEF2FF' }}>
+              <Users className="w-5 h-5" style={{ color: '#1E3A8A' }} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Expected</p>
-              <h3 className="text-2xl font-bold" style={{ color: '#1E3A8A' }}>
-                {totalExpected}
-              </h3>
+              <p className="text-xs text-gray-500 font-medium">Expected</p>
+              <h3 className="text-2xl font-bold" style={{ color: '#1E3A8A' }}>{totalExpected}</h3>
             </div>
           </div>
         </Card>
 
-        <Card className="p-6 rounded-xl shadow-sm">
+        {/* Present (matched) */}
+        <Card className="p-5 rounded-xl shadow-sm">
           <div className="flex items-center gap-3">
-            <div
-              className="w-12 h-12 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: '#ECFDF5' }}
-            >
-              <CheckCircle2 className="w-6 h-6" style={{ color: '#10B981' }} />
+            <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ECFDF5' }}>
+              <CheckCircle2 className="w-5 h-5" style={{ color: '#10B981' }} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Detected</p>
-              <h3 className="text-2xl font-bold" style={{ color: '#10B981' }}>
-                {detectedStudents.length}
-              </h3>
+              <p className="text-xs text-gray-500 font-medium">Present</p>
+              <h3 className="text-2xl font-bold" style={{ color: '#10B981' }}>{matchedCount}</h3>
             </div>
           </div>
         </Card>
 
-        <Card className="p-6 rounded-xl shadow-sm">
+        {/* Pending (not yet marked) */}
+        <Card className="p-5 rounded-xl shadow-sm">
           <div className="flex items-center gap-3">
-            <div
-              className="w-12 h-12 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: '#FEF2F2' }}
-            >
-              <XCircle className="w-6 h-6" style={{ color: '#EF4444' }} />
+            <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#FEF2F2' }}>
+              <XCircle className="w-5 h-5" style={{ color: '#EF4444' }} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Pending</p>
-              <h3 className="text-2xl font-bold" style={{ color: '#EF4444' }}>
-                {totalExpected - detectedStudents.length}
-              </h3>
+              <p className="text-xs text-gray-500 font-medium">Pending</p>
+              <h3 className="text-2xl font-bold" style={{ color: '#EF4444' }}>{pendingCount}</h3>
             </div>
           </div>
         </Card>
 
-        <Card className="p-6 rounded-xl shadow-sm">
+        {/* Unregistered */}
+        <Card className="p-5 rounded-xl shadow-sm">
           <div className="flex items-center gap-3">
-            <div
-              className="w-12 h-12 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: '#FEF3C7' }}
-            >
-              <TrendingUp className="w-6 h-6" style={{ color: '#F59E0B' }} />
+            <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#FFF7ED' }}>
+              <AlertCircle className="w-5 h-5" style={{ color: '#F97316' }} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Avg Confidence</p>
-              <h3 className="text-2xl font-bold" style={{ color: '#F59E0B' }}>
-                {detectedStudents.length > 0
-                  ? (
-                    detectedStudents.reduce((sum, s) => sum + s.confidence, 0) /
-                    detectedStudents.length
-                  ).toFixed(1)
-                  : 0}
-                %
-              </h3>
+              <p className="text-xs text-gray-500 font-medium">Unregistered</p>
+              <h3 className="text-2xl font-bold" style={{ color: '#F97316' }}>{unknownCount}</h3>
             </div>
           </div>
         </Card>
@@ -316,86 +287,21 @@ export function FacultyDashboard() {
             )}
           </div>
 
-          <div
-            className="relative aspect-video flex items-center justify-center"
-            style={{ backgroundColor: '#1F2937' }}
-          >
+          {/* Camera area — let AttendanceCamera fill the card body */}
+          <div className="relative" style={{ minHeight: 420 }}>
             {!isScanning ? (
-              <div className="text-center text-gray-400">
-                <Camera className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <div
+                className="flex flex-col items-center justify-center gap-3 text-gray-400"
+                style={{ minHeight: 420, backgroundColor: '#1F2937' }}
+              >
+                <Camera className="w-16 h-16 opacity-40" />
                 <p className="text-lg">Camera Standby</p>
-                <p className="text-sm mt-2">Click "Start Recognition" to begin</p>
+                <p className="text-sm opacity-70">Click "Start Recognition" to begin</p>
               </div>
             ) : (
-              <div className="relative w-full h-full">
-                {/* actual webcam feed underneath overlays */}
-                <div className="absolute inset-0">
-                  <AttendanceCamera onDetection={handleCameraDetection} />
-                </div>
-
-                {/* Scanning grid overlay */}
-                <div className="absolute inset-0 opacity-30">
-                  <div className="grid grid-cols-8 grid-rows-6 h-full w-full">
-                    {Array.from({ length: 48 }).map((_, i) => (
-                      <div key={i} className="border border-blue-400/20"></div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Scanning line animation */}
-                <div
-                  className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent transition-all duration-100"
-                  style={{ top: `${scanningAnimation}%` }}
-                ></div>
-
-                {/* Detection frame */}
-                {currentDetection && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div
-                      className="relative w-64 h-80 border-4 rounded-lg animate-pulse"
-                      style={{ borderColor: '#10B981' }}
-                    >
-                      <div
-                        className="absolute -top-8 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg font-bold text-white whitespace-nowrap"
-                        style={{ backgroundColor: '#10B981' }}
-                      >
-                        Detecting: {currentDetection}
-                      </div>
-                      {/* Corner markers */}
-                      <div
-                        className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4"
-                        style={{ borderColor: '#10B981' }}
-                      ></div>
-                      <div
-                        className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4"
-                        style={{ borderColor: '#10B981' }}
-                      ></div>
-                      <div
-                        className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4"
-                        style={{ borderColor: '#10B981' }}
-                      ></div>
-                      <div
-                        className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4"
-                        style={{ borderColor: '#10B981' }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Status overlay */}
-                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-white bg-black/60 px-3 py-2 rounded-lg backdrop-blur-sm">
-                    <ScanFace className="w-4 h-4" />
-                    <span className="text-sm font-medium">AI Face Detection Active</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white bg-black/60 px-3 py-2 rounded-lg backdrop-blur-sm">
-                    <div
-                      className="w-2 h-2 rounded-full animate-pulse"
-                      style={{ backgroundColor: '#10B981' }}
-                    ></div>
-                    <span className="text-sm font-medium">Scanning...</span>
-                  </div>
-                </div>
+              /* AttendanceCamera handles the video, bounding box, and overlays internally */
+              <div className="w-full" style={{ minHeight: 420 }}>
+                <AttendanceCamera onDetection={handleCameraDetection} />
               </div>
             )}
           </div>
@@ -519,8 +425,8 @@ export function FacultyDashboard() {
                   <div
                     key={student.id}
                     className={`flex items-center justify-between p-3 rounded-xl border transition-all animate-in slide-in-from-top duration-300 ${isMatch
-                        ? 'bg-emerald-50 border-emerald-200'
-                        : 'bg-orange-50 border-orange-200'
+                      ? 'bg-emerald-50 border-emerald-200'
+                      : 'bg-orange-50 border-orange-200'
                       }`}
                   >
                     <div className="flex items-center gap-3">
