@@ -1,6 +1,12 @@
 from .database import get_db_connection
 from .config import MATCH_THRESHOLD
 from datetime import datetime
+import hashlib
+
+
+def _hash_password(password: str) -> str:
+    """Hash a password using SHA-256."""
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 def insert_user(roll_number, name, department, embedding):
     conn = get_db_connection()
@@ -95,10 +101,12 @@ def insert_faculty(email: str, password: str, name: str, department: str):
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        # department here is a department_id (integer sent as string from form)
+        hashed = _hash_password(password)
         cursor.execute("""
-            INSERT INTO faculty (email, password, name, department, created_at)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (email, password, name, department, datetime.now()))
+            INSERT INTO faculty (email, password_hash, name, department_id, role, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (email, hashed, name, int(department), 'faculty', datetime.now()))
 
         conn.commit()
         cursor.close()
@@ -110,15 +118,15 @@ def insert_faculty(email: str, password: str, name: str, department: str):
 
 
 def authenticate_faculty(email: str, password: str):
-    """Authenticate faculty member"""
+    """Authenticate faculty member (role = 'faculty' only)"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT id, name, email, department, password, created_at
+            SELECT id, name, email, department_id, password_hash
             FROM faculty
-            WHERE email = %s
+            WHERE email = %s AND role = 'faculty' AND is_active = true
         """, (email,))
 
         result = cursor.fetchone()
@@ -128,14 +136,13 @@ def authenticate_faculty(email: str, password: str):
         if not result:
             return None
 
-        stored_password = result[4]
-
-        if stored_password == password:
+        stored_hash = result[4]
+        if stored_hash == _hash_password(password):
             return {
                 "id": result[0],
                 "name": result[1],
                 "email": result[2],
-                "department": result[3],
+                "departmentId": result[3],
                 "role": "faculty"
             }
 
@@ -146,21 +153,47 @@ def authenticate_faculty(email: str, password: str):
 
 
 def authenticate_admin(email: str, password: str):
-    """Authenticate admin user"""
-    # Hardcoded admin credentials for initial setup
-    admin_credentials = {
-        "admin@university.edu": "admin123"
-    }
+    """Authenticate admin user – checks DB first, then falls back to superadmin."""
+    # Try database-registered admins first
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    if email in admin_credentials:
-        if password == admin_credentials[email]:
-            return {
-                "id": 1,
-                "name": "Admin",
-                "email": email,
-                "department": "Administration",
-                "role": "admin"
-            }
+        cursor.execute("""
+            SELECT id, name, email, department_id, password_hash
+            FROM faculty
+            WHERE email = %s AND role = 'admin' AND is_active = true
+        """, (email,))
+
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if result:
+            stored_hash = result[4]
+            if stored_hash == _hash_password(password):
+                return {
+                    "id": result[0],
+                    "name": result[1],
+                    "email": result[2],
+                    "departmentId": result[3],
+                    "role": "admin"
+                }
+            # Email found but password wrong – don't fall through to superadmin
+            return None
+    except Exception as e:
+        print(f"Error authenticating admin from DB: {e}")
+
+    # Fallback: built-in superadmin for first-time / emergency access
+    if email == "admin@university.edu" and password == "admin123":
+        return {
+            "id": 0,
+            "name": "Super Admin",
+            "email": email,
+            "departmentId": None,
+            "role": "admin"
+        }
+
     return None
 
 
@@ -233,10 +266,11 @@ def insert_admin(email: str, password: str, name: str, department: str):
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        hashed = _hash_password(password)
         cursor.execute("""
-            INSERT INTO faculty (email, password, name, department, created_at, role)
+            INSERT INTO faculty (email, password_hash, name, department_id, role, created_at)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (email, password, name, department, datetime.now(), 'admin'))
+        """, (email, hashed, name, int(department), 'admin', datetime.now()))
 
         conn.commit()
         cursor.close()
