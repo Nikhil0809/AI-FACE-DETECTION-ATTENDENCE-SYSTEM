@@ -53,6 +53,8 @@ const AttendanceCamera: React.FC<AttendanceCameraProps> = ({
   const [detectionMsg, setDetectionMsg] = useState<string | null>(null);
   const [detectionKind, setDetectionKind] = useState<'success' | 'info'>('info');
   const [faceBox, setFaceBox] = useState<FaceBox | null>(null);
+  const [faceStatus, setFaceStatus] = useState<'matched' | 'unknown'>('unknown');
+  const [faceLabel, setFaceLabel] = useState<string>('');
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>(
     () => localStorage.getItem(DEVICE_KEY) ?? ''
@@ -81,7 +83,7 @@ const AttendanceCamera: React.FC<AttendanceCameraProps> = ({
     } catch {/* permissions not granted yet */ }
   }, []);
 
-  // ── Draw face bounding box ─────────────────────────────────────────────────
+  // ── Draw face bounding box (color-coded) ────────────────────────────────
   useEffect(() => {
     const canvas = overlayRef.current;
     const video = videoRef.current;
@@ -99,38 +101,85 @@ const AttendanceCamera: React.FC<AttendanceCameraProps> = ({
     const bw = faceBox.w * scaleX;
     const bh = faceBox.h * scaleY;
 
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = 'rgba(79,142,247,0.7)';
-    ctx.strokeStyle = '#4F8EF7';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(bx, by, bw, bh);
+    const isMatch = faceStatus === 'matched';
+    const mainColor = isMatch ? '#22C55E' : '#F97316';
+    const glowColor = isMatch ? 'rgba(34,197,94,0.5)' : 'rgba(249,115,22,0.5)';
+    const cLen = Math.min(bw, bh) * 0.2;
 
+    // 1. Tinted fill
+    ctx.fillStyle = isMatch ? 'rgba(34,197,94,0.06)' : 'rgba(249,115,22,0.06)';
+    ctx.fillRect(bx, by, bw, bh);
+
+    // 2. Glowing outer border
+    ctx.shadowBlur = 22;
+    ctx.shadowColor = glowColor;
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.strokeRect(bx, by, bw, bh);
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#A5C8FF';
+
+    // 3. Bold corner accents
+    ctx.strokeStyle = mainColor;
     ctx.lineWidth = 4;
-    const cLen = Math.min(bw, bh) * 0.22;
-    const corners = [
-      [bx, by, cLen, 0, 0, cLen],
-      [bx + bw, by, -cLen, 0, 0, cLen],
-      [bx, by + bh, cLen, 0, 0, -cLen],
-      [bx + bw, by + bh, -cLen, 0, 0, -cLen],
-    ] as const;
-    corners.forEach(([x, y, dx1, , , dy2]) => {
+    ctx.lineCap = 'round';
+    const corners: [number, number][] = [
+      [bx, by],
+      [bx + bw, by],
+      [bx, by + bh],
+      [bx + bw, by + bh],
+    ];
+    const signs: [number, number][] = [[1, 1], [-1, 1], [1, -1], [-1, -1]];
+    corners.forEach(([cx, cy], i) => {
+      const [sx, sy] = signs[i];
       ctx.beginPath();
-      ctx.moveTo(x + dx1, y);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x, y + dy2);
+      ctx.moveTo(cx + sx * cLen, cy);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx, cy + sy * cLen);
       ctx.stroke();
     });
-  }, [faceBox]);
+
+    // 4. Label badge above box
+    const label = faceLabel || (isMatch ? 'IDENTIFIED' : 'UNKNOWN');
+    const fontSize = Math.max(11, Math.min(14, bw / 9));
+    ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
+    const mt = ctx.measureText(label);
+    const padX = 10, padY = 5;
+    const bW = mt.width + padX * 2;
+    const bH = fontSize + padY * 2;
+    const bX = bx + (bw - bW) / 2;
+    const bY = by - bH - 7;
+
+    // badge pill
+    ctx.fillStyle = mainColor;
+    const r = 5;
+    ctx.beginPath();
+    ctx.moveTo(bX + r, bY);
+    ctx.arcTo(bX + bW, bY, bX + bW, bY + bH, r);
+    ctx.arcTo(bX + bW, bY + bH, bX, bY + bH, r);
+    ctx.arcTo(bX, bY + bH, bX, bY, r);
+    ctx.arcTo(bX, bY, bX + bW, bY, r);
+    ctx.closePath();
+    ctx.fill();
+
+    // badge text
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowBlur = 0;
+    ctx.fillText(label, bX + bW / 2, bY + bH / 2);
+    ctx.textAlign = 'left';
+  }, [faceBox, faceStatus, faceLabel]);
 
   // ── Face box auto-clear ────────────────────────────────────────────────────
   const faceBoxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refreshFaceBox = useCallback((box?: FaceBox) => {
+  const refreshFaceBox = useCallback((box?: FaceBox, status?: 'matched' | 'unknown', label?: string) => {
     if (faceBoxTimerRef.current) clearTimeout(faceBoxTimerRef.current);
     if (box) {
       setFaceBox(box);
-      faceBoxTimerRef.current = setTimeout(() => setFaceBox(null), 1500);
+      setFaceStatus(status ?? 'unknown');
+      setFaceLabel(label ?? '');
+      faceBoxTimerRef.current = setTimeout(() => setFaceBox(null), 1800);
     } else {
       setFaceBox(null);
     }
@@ -159,15 +208,17 @@ const AttendanceCamera: React.FC<AttendanceCameraProps> = ({
           type?: string; bbox?: FaceBox;
         };
         if (data.type === 'detection_result' || data.status) {
-          if (data.bbox) refreshFaceBox(data.bbox);
           if (data.status === 'matched') {
+            refreshFaceBox(data.bbox, 'matched', data.name);
             const already = data.note === 'Already marked present today';
             showToast(
               already ? `✓ ${data.name} — already marked` : `✓ ${data.name} (${data.roll_number})`,
               already ? 'info' : 'success'
             );
+          } else if (data.status === 'unknown') {
+            if (data.bbox) refreshFaceBox(data.bbox, 'unknown', 'UNKNOWN');
           } else if (data.status === 'no_face') {
-            refreshFaceBox(undefined);
+            setFaceBox(null);
           }
           if (onDetectionRef.current && (data.status === 'matched' || data.status === 'unknown')) {
             onDetectionRef.current(data as DetectionResult);

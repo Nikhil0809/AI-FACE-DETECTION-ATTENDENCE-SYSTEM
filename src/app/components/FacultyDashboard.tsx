@@ -25,13 +25,13 @@ interface DetectedStudent {
   name: string;
   confidence: number;
   timestamp: string;
-  image?: string;
+  status: 'matched' | 'unknown';
 }
 
 interface StudentData {
-  id: string;
+  id: number | string;
   name: string;
-  rollNumber: string;
+  rollNo: string;
 }
 
 export function FacultyDashboard() {
@@ -93,20 +93,28 @@ export function FacultyDashboard() {
 
   // When the camera component reports a result, add it to the list
   const handleCameraDetection = (data: DetectionResult) => {
-    setCurrentDetection(data.name);
+    if (!data.status || data.status === 'no_face' || data.status === 'error') return;
+
+    const isMatched = data.status === 'matched' && !!data.name;
+    const displayName = isMatched ? data.name : 'Unregistered Person';
+
+    setCurrentDetection(displayName);
 
     const newDetection: DetectedStudent = {
-      id: data.id ?? Math.random().toString(),
-      rollNo: data.rollNo ?? '',
-      name: data.name,
+      id: data.id ?? `unknown-${Date.now()}`,
+      rollNo: data.rollNo ?? data.roll_number ?? '—',
+      name: displayName,
       confidence: data.confidence ?? 0,
       timestamp: data.timestamp ?? new Date().toLocaleTimeString(),
-      image: data.image,
+      status: isMatched ? 'matched' : 'unknown',
     };
 
-    setDetectedStudents((prev) => [newDetection, ...prev]);
+    setDetectedStudents((prev) => {
+      // For matched: deduplicate by rollNo; for unknown: always show
+      if (isMatched && prev.some((s) => s.rollNo === newDetection.rollNo && s.status === 'matched')) return prev;
+      return [newDetection, ...prev.slice(0, 49)]; // cap at 50 entries
+    });
 
-    // clear the transient label after a short delay
     setTimeout(() => setCurrentDetection(null), 1500);
   };
 
@@ -269,9 +277,9 @@ export function FacultyDashboard() {
               <h3 className="text-2xl font-bold" style={{ color: '#F59E0B' }}>
                 {detectedStudents.length > 0
                   ? (
-                      detectedStudents.reduce((sum, s) => sum + s.confidence, 0) /
-                      detectedStudents.length
-                    ).toFixed(1)
+                    detectedStudents.reduce((sum, s) => sum + s.confidence, 0) /
+                    detectedStudents.length
+                  ).toFixed(1)
                   : 0}
                 %
               </h3>
@@ -504,36 +512,52 @@ export function FacultyDashboard() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {detectedStudents.map((student) => (
-                <div
-                  key={student.id}
-                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all animate-in slide-in-from-top duration-300"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
-                      style={{ backgroundColor: '#10B981' }}
-                    >
-                      {student.name.charAt(0)}
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+              {detectedStudents.map((student) => {
+                const isMatch = student.status === 'matched';
+                return (
+                  <div
+                    key={student.id}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all animate-in slide-in-from-top duration-300 ${isMatch
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-orange-50 border-orange-200'
+                      }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm"
+                        style={{ backgroundColor: isMatch ? '#10B981' : '#F97316' }}
+                      >
+                        {isMatch ? student.name.charAt(0).toUpperCase() : '?'}
+                      </div>
+                      <div>
+                        <p className={`font-semibold text-sm ${isMatch ? 'text-gray-900' : 'text-orange-800'}`}>
+                          {student.name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {isMatch ? `Roll: ${student.rollNo}` : 'Not in system'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{student.name}</p>
-                      <p className="text-sm text-gray-600">{student.rollNo}</p>
+                    <div className="text-right">
+                      <Badge
+                        className="rounded-full mb-1 text-xs px-2 py-0.5"
+                        style={isMatch
+                          ? { backgroundColor: '#ECFDF5', color: '#059669' }
+                          : { backgroundColor: '#FFF7ED', color: '#EA580C' }
+                        }
+                      >
+                        {isMatch ? (
+                          <><CheckCircle2 className="w-3 h-3 mr-1" />Present</>
+                        ) : (
+                          <><XCircle className="w-3 h-3 mr-1" />Unregistered</>
+                        )}
+                      </Badge>
+                      <p className="text-xs text-gray-400">{student.timestamp}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <Badge
-                      className="rounded-full mb-1"
-                      style={{ backgroundColor: '#ECFDF5', color: '#10B981' }}
-                    >
-                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                      {student.confidence}% Match
-                    </Badge>
-                    <p className="text-xs text-gray-500">{student.timestamp}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
