@@ -2,81 +2,107 @@ from .database import get_db_connection
 from .config import MATCH_THRESHOLD
 from datetime import datetime
 import hashlib
+import json
+import math
 
 
 def _hash_password(password: str) -> str:
     """Hash a password using SHA-256."""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
-def insert_user(roll_number, name, department, embedding):
+def _cosine_distance(a: list, b: list) -> float:
+    """Euclidean-style L2 distance between two equal-length float lists."""
+    if len(a) != len(b):
+        return float('inf')
+    total = sum((x - y) ** 2 for x, y in zip(a, b))
+    return math.sqrt(total)
+
+
+def insert_user(roll_number, name, department_id, embedding, section_id=None, phone_number=None):
+    """Insert a new student. embedding is a list of floats stored as JSON text."""
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO users (roll_number, name, department, face_vector)
-        VALUES (%s, %s, %s, %s)
-    """, (roll_number, name, department, embedding))
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-
-def get_all_users():
-    """Get all registered users"""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
+        face_json = json.dumps(embedding) if embedding is not None else None
         cursor.execute("""
-            SELECT id, name, roll_number, department
-            FROM users
-            ORDER BY roll_number
-        """)
-
-        results = cursor.fetchall()
+            INSERT INTO users (roll_number, name, department_id, section_id, phone_number, face_vector)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (roll_number, name, department_id, section_id, phone_number, face_json))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Error inserting user: {e}")
+        raise
+    finally:
         cursor.close()
         conn.close()
 
-        users = []
-        for row in results:
-            users.append({
+
+def get_all_users():
+    """Get all registered students."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.id, u.name, u.roll_number,
+                   d.name AS dept_name, s.name AS section_name
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.id
+            LEFT JOIN sections    s ON u.section_id    = s.id
+            ORDER BY u.roll_number
+        """)
+        results = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return [
+            {
                 "id": row[0],
                 "name": row[1],
                 "rollNo": row[2],
-                "department": row[3],
+                "department": row[3] or "",
+                "section": row[4] or "",
                 "status": "Active"
-            })
-        return users
+            }
+            for row in results
+        ]
     except Exception as e:
         print(f"Error fetching users: {e}")
         return []
 
 
-def find_nearest_user(embedding):
+def find_nearest_user(embedding: list):
+    """
+    Find the closest registered student by L2 distance.
+    Embeddings are stored as JSON text; comparison is done in Python.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
-        SELECT id, name, roll_number,
-               face_vector <-> %s AS distance
+        SELECT id, name, roll_number, face_vector
         FROM users
-        ORDER BY face_vector <-> %s
-        LIMIT 1;
-    """, (embedding, embedding))
-
-    result = cursor.fetchone()
-
+        WHERE face_vector IS NOT NULL AND is_active = true
+    """)
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    if result and result[3] < MATCH_THRESHOLD:
-        return {
-            "id": result[0],
-            "name": result[1],
-            "roll_number": result[2],
-            "distance": result[3]
-        }
+    if not rows:
+        return None
+
+    best_user = None
+    best_dist = float('inf')
+    for row in rows:
+        try:
+            stored_vec = json.loads(row[3])
+            dist = _cosine_distance(embedding, stored_vec)
+            if dist < best_dist:
+                best_dist = dist
+                best_user = {"id": row[0], "name": row[1], "roll_number": row[2]}
+        except Exception:
+            continue
+
+    if best_user and best_dist < MATCH_THRESHOLD:
+        return {**best_user, "distance": best_dist}
 
     return None
 

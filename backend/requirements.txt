@@ -1,10 +1,6 @@
 fastapi
-uvicorn
-python-socketio[asyncio_server]
-celery
-redis
+uvicorn[standard]
 psycopg2-binary
 opencv-python
 numpy
-face-recognition
-face_recognition
+python-multipart

@@ -184,26 +184,37 @@ def get_faculty():
 # -----------------------------
 @app.post("/register")
 async def register_student(
-    roll_number: str = Form(...),
-    name: str = Form(...),
-    department: str = Form(...),
+    roll_number:  str = Form(...),
+    name:         str = Form(...),
+    department_id: str = Form(...),
+    section_id:   str = Form(None),
+    phone_number: str = Form(None),
     file: UploadFile = File(...)
 ):
     try:
         image_bytes = await file.read()
-        embedding = extract_face_embedding(image_bytes)
+        face_data = extract_face_embedding(image_bytes)
 
-        if embedding is None:
-            return {"status": "error", "message": "No face detected"}
+        if face_data is None:
+            return {"status": "error", "message": "No face detected in the uploaded image"}
 
-        insert_user(roll_number, name, department, embedding)
+        embedding = face_data["embedding"]
+
+        insert_user(
+            roll_number,
+            name,
+            int(department_id),
+            embedding,
+            section_id=int(section_id) if section_id else None,
+            phone_number=phone_number,
+        )
 
         await manager.broadcast({
             "type": "student_registered",
             "data": {
                 "rollNumber": roll_number,
                 "name": name,
-                "department": department
+                "departmentId": department_id
             }
         })
 
