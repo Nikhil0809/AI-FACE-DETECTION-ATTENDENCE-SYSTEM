@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -40,6 +40,10 @@ export function FacultyDashboard() {
   const [currentDetection, setCurrentDetection] = useState<string | null>(null);
   const [allStudents, setAllStudents] = useState<StudentData[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+
+  // Throttle: only add a new Unregistered entry at most once per 5 s
+  const lastUnknownAtRef = useRef<number>(0);
+  const UNKNOWN_COOLDOWN_MS = 5000;
 
   // Load students from backend
   useEffect(() => {
@@ -90,20 +94,40 @@ export function FacultyDashboard() {
 
     setCurrentDetection(displayName);
 
-    const newDetection: DetectedStudent = {
-      id: data.id ?? `unknown-${Date.now()}`,
-      rollNo: data.rollNo ?? data.roll_number ?? '—',
-      name: displayName,
-      confidence: data.confidence ?? 0,
-      timestamp: data.timestamp ?? new Date().toLocaleTimeString(),
-      status: isMatched ? 'matched' : 'unknown',
-    };
+    if (isMatched) {
+      // Matched: deduplicate by roll number
+      const newDetection: DetectedStudent = {
+        id: data.id ?? `matched-${Date.now()}`,
+        rollNo: data.rollNo ?? data.roll_number ?? '—',
+        name: displayName,
+        confidence: data.confidence ?? 0,
+        timestamp: data.timestamp ?? new Date().toLocaleTimeString(),
+        status: 'matched',
+      };
+      setDetectedStudents((prev) => {
+        if (prev.some((s) => s.rollNo === newDetection.rollNo && s.status === 'matched')) return prev;
+        return [newDetection, ...prev.slice(0, 49)];
+      });
+    } else {
+      // Unknown: throttle to once per UNKNOWN_COOLDOWN_MS
+      const now = Date.now();
+      if (now - lastUnknownAtRef.current < UNKNOWN_COOLDOWN_MS) return;
+      lastUnknownAtRef.current = now;
 
-    setDetectedStudents((prev) => {
-      // For matched: deduplicate by rollNo; for unknown: always show
-      if (isMatched && prev.some((s) => s.rollNo === newDetection.rollNo && s.status === 'matched')) return prev;
-      return [newDetection, ...prev.slice(0, 49)]; // cap at 50 entries
-    });
+      const unknownEntry: DetectedStudent = {
+        id: `unknown-${now}`,
+        rollNo: '—',
+        name: 'Unregistered Person',
+        confidence: 0,
+        timestamp: new Date().toLocaleTimeString(),
+        status: 'unknown',
+      };
+      // Replace the previous unknown entry (if any) rather than stacking
+      setDetectedStudents((prev) => {
+        const withoutOldUnknown = prev.filter((s) => s.status !== 'unknown');
+        return [unknownEntry, ...withoutOldUnknown.slice(0, 49)];
+      });
+    }
 
     setTimeout(() => setCurrentDetection(null), 1500);
   };

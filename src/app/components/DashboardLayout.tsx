@@ -12,6 +12,7 @@ import {
   ScanFace,
 } from 'lucide-react';
 import { Button } from './ui/button';
+import collegeLogo from '../../assets/alt-logo.jpg';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -19,6 +20,7 @@ interface DashboardLayoutProps {
   onNavigate: (page: string) => void;
   onLogout: () => void;
   userRole: 'admin' | 'faculty';
+  currentUser?: any;
 }
 
 export function DashboardLayout({
@@ -27,6 +29,7 @@ export function DashboardLayout({
   onNavigate,
   onLogout,
   userRole,
+  currentUser,
 }: DashboardLayoutProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -47,21 +50,14 @@ export function DashboardLayout({
     <div className="min-h-screen flex bg-background text-foreground transition-colors duration-300">
       {/* Sidebar */}
       <div className="w-64 bg-card/60 backdrop-blur-xl border-r border-border shadow-sm flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-            >
-              <GraduationCap className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="font-bold text-primary tracking-tight">
-                AI Attendance
-              </h2>
-              <p className="text-xs text-muted-foreground font-medium">Management System</p>
-            </div>
-          </div>
+        {/* College Logo */}
+        <div className="p-4 border-b border-border/50 bg-[#0f2040]">
+          <img
+            src={collegeLogo}
+            alt="Vignan Institute"
+            className="w-full object-contain"
+            style={{ maxHeight: '52px', filter: 'brightness(0) invert(1) opacity(0.92)' }}
+          />
         </div>
 
         {/* Navigation */}
@@ -75,8 +71,8 @@ export function DashboardLayout({
                   key={item.id}
                   onClick={() => onNavigate(item.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${isActive
-                      ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]'
-                      : 'text-muted-foreground hover:bg-secondary/40 hover:text-foreground hover:scale-[1.01]'
+                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]'
+                    : 'text-muted-foreground hover:bg-secondary/40 hover:text-foreground hover:scale-[1.01]'
                     }`}
                 >
                   <Icon className="w-5 h-5" />

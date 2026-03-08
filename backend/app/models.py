@@ -38,19 +38,32 @@ def insert_user(roll_number, name, department_id, embedding, section_id=None, ph
         conn.close()
 
 
-def get_all_users():
-    """Get all registered students."""
+def get_all_users(department_id: int = None):
+    """Get all registered students, optionally filtered by department."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT u.id, u.name, u.roll_number,
-                   d.name AS dept_name, s.name AS section_name
-            FROM users u
-            LEFT JOIN departments d ON u.department_id = d.id
-            LEFT JOIN sections    s ON u.section_id    = s.id
-            ORDER BY u.roll_number
-        """)
+        if department_id:
+            cursor.execute("""
+                SELECT u.id, u.name, u.roll_number,
+                       d.name AS dept_name, s.name AS section_name,
+                       u.phone_number, u.department_id
+                FROM users u
+                LEFT JOIN departments d ON u.department_id = d.id
+                LEFT JOIN sections    s ON u.section_id    = s.id
+                WHERE u.department_id = %s
+                ORDER BY u.roll_number
+            """, (department_id,))
+        else:
+            cursor.execute("""
+                SELECT u.id, u.name, u.roll_number,
+                       d.name AS dept_name, s.name AS section_name,
+                       u.phone_number, u.department_id
+                FROM users u
+                LEFT JOIN departments d ON u.department_id = d.id
+                LEFT JOIN sections    s ON u.section_id    = s.id
+                ORDER BY u.roll_number
+            """)
         results = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -59,8 +72,10 @@ def get_all_users():
                 "id": row[0],
                 "name": row[1],
                 "rollNo": row[2],
-                "department": row[3] or "",
+                "branch": row[3] or "",
                 "section": row[4] or "",
+                "phone": row[5] or "",
+                "year": "",
                 "status": "Active"
             }
             for row in results

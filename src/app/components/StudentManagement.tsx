@@ -33,9 +33,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface StudentManagementProps {
   onAddStudent: () => void;
+  facultyDepartmentId?: number;
+  userRole?: 'admin' | 'faculty';
 }
 
-export function StudentManagement({ onAddStudent }: StudentManagementProps) {
+export function StudentManagement({ onAddStudent, facultyDepartmentId, userRole = 'admin' }: StudentManagementProps) {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,7 +56,7 @@ export function StudentManagement({ onAddStudent }: StudentManagementProps) {
     // Load students from the backend
     const loadStudents = async () => {
       setLoading(true);
-      const apiStudents = await getStudents();
+      const apiStudents = await getStudents(facultyDepartmentId);
       setStudents(apiStudents || []);
       setLoading(false);
     };
@@ -176,6 +178,15 @@ export function StudentManagement({ onAddStudent }: StudentManagementProps) {
       animate="show"
       className="space-y-6"
     >
+      {/* Faculty Dept Banner */}
+      {userRole === 'faculty' && facultyDepartmentId && (
+        <motion.div variants={itemVariants}>
+          <div className="rounded-xl px-5 py-3 bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium flex items-center gap-2">
+            <span className="text-base">🏫</span>
+            Showing students from your department only
+          </div>
+        </motion.div>
+      )}
       {/* Header Actions */}
       <motion.div variants={itemVariants}>
         <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl">
@@ -334,9 +345,11 @@ export function StudentManagement({ onAddStudent }: StudentManagementProps) {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => handleEditStudent(student)}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
+                          {userRole === 'admin' && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => handleEditStudent(student)}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors text-muted-foreground" onClick={() => handleDeleteStudent(student)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>

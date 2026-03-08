@@ -13,6 +13,7 @@ from app.models import (
     delete_all_students, delete_all_attendance, reset_database
 )
 from app.worker import process_frame
+from app.sms_service import send_sms_notification, SMS_LOG_FILE
 
 app = FastAPI(title="Enterprise AI Attendance System")
 
@@ -225,8 +226,8 @@ async def register_student(
 
 
 @app.get("/students")
-def get_students():
-    students = get_all_users()
+def get_students(department_id: int = None):
+    students = get_all_users(department_id=department_id)
     return {"status": "success", "students": students}
 
 
@@ -244,6 +245,38 @@ async def recognize_face(file: UploadFile = File(...)):
             "result": result
         }
 
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/debug/face")
+async def debug_face(file: UploadFile = File(...)):
+    """Show distances to all registered students – for threshold tuning."""
+    from app.models import get_db_connection
+    from app.config import MATCH_THRESHOLD
+    import json, math
+
+    try:
+        image_bytes = await file.read()
+        face_data = extract_face_embedding(image_bytes)
+        if face_data is None:
+            return {"status": "no_face_detected"}
+
+        emb = face_data["embedding"]
+        conn = get_db_connection()
+        cur  = conn.cursor()
+        cur.execute("SELECT id, name, roll_number, face_vector FROM users WHERE face_vector IS NOT NULL")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+
+        results = []
+        for row in rows:
+            vec = json.loads(row[3])
+            dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(emb, vec)))
+            results.append({"name": row[1], "roll": row[2], "distance": round(dist, 4), "match": dist < MATCH_THRESHOLD})
+
+        results.sort(key=lambda x: x["distance"])
+        return {"status": "ok", "threshold": MATCH_THRESHOLD, "bbox": face_data["bbox"], "candidates": results}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -379,3 +412,38 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket error: {e}")
         manager.disconnect(websocket)
+
+
+# -----------------------------
+# SMS NOTIFICATIONS API
+# -----------------------------
+@app.post("/sms/send")
+def send_absent_sms(data: dict):
+    """
+    Send an SMS to an absent student's parent.
+    Payload: { "phone": "...", "name": "...", "rollNo": "..." }
+    """
+    phone = data.get("phone")
+    name = data.get("name")
+    roll_no = data.get("rollNo")
+    
+    if not phone or not name or not roll_no:
+        return {"status": "error", "message": "Missing required fields"}
+        
+    success = send_sms_notification(phone, name, roll_no)
+    if success:
+        return {"status": "success", "message": f"SMS sent to {name}"}
+    return {"status": "error", "message": "Failed to send SMS"}
+
+@app.get("/sms/logs")
+def get_sms_logs():
+    """Retrieve all logged SMS notifications."""
+    try:
+        import os, json
+        if not os.path.exists(SMS_LOG_FILE):
+            return {"status": "success", "logs": []}
+        with open(SMS_LOG_FILE, "r") as f:
+            logs = json.load(f)
+        return {"status": "success", "logs": logs}
+    except Exception as e:
+        return {"status": "error", "message": str(e), "logs": []}

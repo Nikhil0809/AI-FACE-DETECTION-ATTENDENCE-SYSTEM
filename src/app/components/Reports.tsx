@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Calendar, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { Calendar, Download, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import {
@@ -21,51 +21,129 @@ import {
 } from './ui/table';
 import { Badge } from './ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { getAttendance, AttendanceRecord } from '../api/apiClient';
-import { motion } from 'framer-motion';
+import { getAttendance, AttendanceRecord, getStudents, Student, sendSms } from '../api/apiClient';
+import { motion, AnimatePresence } from 'framer-motion';
+import { MessageSquare, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export function Reports() {
   const [startDate, setStartDate] = useState('2026-02-01');
   const [endDate, setEndDate] = useState('2026-02-28');
   const [selectedDept, setSelectedDept] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'present' | 'absent'>('all');
   const [loading, setLoading] = useState(true);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
+  const [sendingSms, setSendingSms] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const recordsPerPage = 10;
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const records = await getAttendance(500);
-      setAttendanceRecords(records);
-      setFilteredRecords(records); // Initially show all
-      setLoading(false);
+      try {
+        const [records, students] = await Promise.all([
+          getAttendance(1000),
+          getStudents()
+        ]);
+        setAttendanceRecords(records);
+        setAllStudents(students);
+      } catch (err) {
+        console.error('Failed to load data:', err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadData();
   }, []);
 
-  const applyFilters = () => {
-    let filtered = attendanceRecords;
+  // Recalculate filtered records whenever deps change
+  useEffect(() => {
+    applyFilters();
+  }, [attendanceRecords, allStudents, startDate, endDate, selectedDept, selectedStatus]);
 
-    // Date filter
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      filtered = filtered.filter(record => {
-        const recordDate = new Date(record.timestamp);
-        return recordDate >= start && recordDate <= end;
+  const applyFilters = () => {
+    // 1. Filter students by department first
+    let students = allStudents;
+    if (selectedDept !== 'all') {
+      students = students.filter(s => s.branch === selectedDept || s.department === selectedDept);
+    }
+
+    // 2. Identify who is present
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59);
+
+    const filteredAttendance = attendanceRecords.filter(record => {
+      const d = new Date(record.timestamp);
+      return d >= start && d <= end;
+    });
+
+    const presentRolls = new Set(filteredAttendance.map(r => r.rollNumber));
+
+    // 3. Build the combined list
+    const combined: any[] = [];
+
+    // Add present records
+    filteredAttendance.forEach(record => {
+      if (selectedStatus === 'absent') return;
+      combined.push({
+        ...record,
+        status: 'Present',
+        studentName: record.studentName,
+        rollNumber: record.rollNumber,
+        phone: allStudents.find(s => s.rollNo === record.rollNumber)?.phone || ''
+      });
+    });
+
+    // Add absent students (only if we're looking at a single day or want a general list)
+    // For simplicity, we'll show students who have 0 records in the range as 'Absent'
+    if (selectedStatus !== 'present') {
+      students.forEach(student => {
+        if (!presentRolls.has(student.rollNo)) {
+          combined.push({
+            id: `absent-${student.id}`,
+            studentName: student.name,
+            rollNumber: student.rollNo,
+            department: student.branch || student.department,
+            section: student.section,
+            timestamp: 'N/A',
+            status: 'Absent',
+            phone: student.phone || ''
+          });
+        }
       });
     }
 
-    // Department filter
+    // Apply department filter again just in case (for attendance records that might not have student info linked)
+    let final = combined;
     if (selectedDept !== 'all') {
-      filtered = filtered.filter(record => record.department === selectedDept);
+      final = final.filter(r => r.department === selectedDept || r.branch === selectedDept);
     }
 
-    setFilteredRecords(filtered);
-    setCurrentPage(1); // Reset to first page
+    setFilteredRecords(final);
+    setCurrentPage(1);
+  };
+
+  const handleSendSms = async (student: any) => {
+    if (!student.phone) {
+      alert('Phone number not available for this student');
+      return;
+    }
+    setSendingSms(student.rollNumber);
+    try {
+      const res = await sendSms(student.phone, student.studentName, student.rollNumber);
+      if (res.status === 'success') {
+        alert(`SMS sent successfully to ${student.studentName}'s parent`);
+      } else {
+        alert('Failed to send SMS: ' + res.message);
+      }
+    } catch (err) {
+      alert('An error occurred while sending SMS');
+    } finally {
+      setSendingSms(null);
+    }
   };
 
   const handleGenerateReport = () => {
@@ -105,9 +183,9 @@ export function Reports() {
 
   // Calculate daily attendance
   const dailyAttendance = filteredRecords.reduce(
-    (acc, record) => {
+    (acc: any[], record: any) => {
       const date = new Date(record.timestamp).getDate().toString().padStart(2, '0');
-      const existing = acc.find((d) => d.date === date);
+      const existing = acc.find((d: any) => d.date === date);
       if (existing) {
         existing.value += 1;
       } else {
@@ -142,7 +220,7 @@ export function Reports() {
 
   const itemVariants = {
     hidden: { opacity: 0, scale: 0.95 },
-    show: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
+    show: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 300, damping: 24 } as any }
   };
 
   if (loading) {
@@ -188,45 +266,25 @@ export function Reports() {
               />
             </div>
             <div>
-              <Label htmlFor="department">Department</Label>
-              <Select value={selectedDept} onValueChange={setSelectedDept}>
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Select Department" />
+              <Label htmlFor="status">Status</Label>
+              <Select value={selectedStatus} onValueChange={(v: 'all' | 'present' | 'absent') => setSelectedStatus(v)}>
+                <SelectTrigger className="mt-1.5 font-medium">
+                  <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
-                  {/* Core Engineering Departments */}
-                  <SelectItem value="Computer Science and Engineering">CSE (Core)</SelectItem>
-                  <SelectItem value="Electronics and Communication Engineering">ECE</SelectItem>
-                  <SelectItem value="Electrical and Electronics Engineering">EEE</SelectItem>
-                  <SelectItem value="Mechanical Engineering">ME</SelectItem>
-                  <SelectItem value="Civil Engineering">CE</SelectItem>
-                  <SelectItem value="Information Technology">IT</SelectItem>
-                  {/* New / Specialized Technology Departments */}
-                  <SelectItem value="Artificial Intelligence & Data Science">AI & Data Science</SelectItem>
-                  <SelectItem value="CSE-AI">CSE - Artificial Intelligence (Special)</SelectItem>
-                  <SelectItem value="CSE-DS">CSE - Data Science (Special)</SelectItem>
-                  <SelectItem value="CSE-CS">CSE - Cyber Security (Special)</SelectItem>
-                  <SelectItem value="Electronics and Computer Engineering">ECM</SelectItem>
-                  {/* Other Academic Departments */}
-                  <SelectItem value="Engineering & Applied Sciences">Eng. & Applied Sciences</SelectItem>
-                  {/* Postgraduate Departments */}
-                  <SelectItem value="Master of Business Administration">MBA</SelectItem>
-                  <SelectItem value="Master of Computer Applications">MCA</SelectItem>
-                  <SelectItem value="M.Tech - Computer Science">M.Tech - CSE</SelectItem>
-                  <SelectItem value="M.Tech - Electronics">M.Tech - Electronics</SelectItem>
-                  <SelectItem value="M.Tech - AI & Machine Learning">M.Tech - AI & ML</SelectItem>
-                  <SelectItem value="M.Tech - Information Technology">M.Tech - IT</SelectItem>
+                  <SelectItem value="all">All (Both)</SelectItem>
+                  <SelectItem value="present">Present Only</SelectItem>
+                  <SelectItem value="absent">Absent Only</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="flex items-end gap-2">
               <Button
-                className="flex-1 shadow-sm font-semibold"
-                onClick={handleGenerateReport}
+                className="flex-1 shadow-sm font-semibold bg-primary hover:bg-primary/90"
+                onClick={applyFilters}
               >
-                <Calendar className="w-4 h-4 mr-2" />
-                Generate
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
               </Button>
             </div>
           </div>
@@ -293,7 +351,7 @@ export function Reports() {
             Daily Attendance Heatmap (Current Month)
           </h3>
           <div className="grid grid-cols-7 gap-2">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day: string) => (
               <div key={day} className="text-center text-sm font-medium text-gray-600 py-2">
                 {day}
               </div>
@@ -398,34 +456,66 @@ export function Reports() {
                   <TableHead className="font-semibold text-muted-foreground">Date & Time</TableHead>
                   <TableHead className="font-semibold text-muted-foreground">Student Name</TableHead>
                   <TableHead className="font-semibold text-muted-foreground">Roll No</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">Department</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">Section</TableHead>
                   <TableHead className="font-semibold text-muted-foreground">Status</TableHead>
+                  <TableHead className="font-semibold text-muted-foreground">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-border/30">
-                {currentRecords.map((record) => (
-                  <TableRow key={record.id || record.timestamp + record.rollNumber} className="hover:bg-secondary/20 transition-colors">
-                    <TableCell className="font-medium text-foreground">
-                      {new Date(record.timestamp).toLocaleString(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{record.studentName}</TableCell>
-                    <TableCell className="text-muted-foreground font-semibold">{record.rollNumber}</TableCell>
-                    <TableCell className="text-muted-foreground">{record.department || 'N/A'}</TableCell>
-                    <TableCell className="text-muted-foreground">{record.section || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
-                        Present
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                <AnimatePresence>
+                  {currentRecords.map((record) => (
+                    <TableRow
+                      key={record.id || record.timestamp + record.rollNumber}
+                      className={`hover:bg-secondary/20 transition-colors ${record.status === 'Absent' ? 'bg-red-500/5' : ''}`}
+                    >
+                      <TableCell className="font-medium text-foreground">
+                        {record.status === 'Present' ? (
+                          new Date(record.timestamp).toLocaleString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        ) : (
+                          <span className="text-muted-foreground italic">No record</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-bold text-foreground">{record.studentName}</TableCell>
+                      <TableCell className="text-muted-foreground font-semibold">{record.rollNumber}</TableCell>
+                      <TableCell>
+                        {record.status === 'Present' ? (
+                          <Badge className="bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20 gap-1.5 py-1 px-3">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Present
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20 gap-1.5 py-1 px-3">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            Absent
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {record.status === 'Absent' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-2 bg-primary/5 hover:bg-primary hover:text-white transition-all border-primary/20"
+                            onClick={() => handleSendSms(record)}
+                            disabled={sendingSms === record.rollNumber}
+                          >
+                            <Send className={`w-3.5 h-3.5 ${sendingSms === record.rollNumber ? 'animate-bounce' : ''}`} />
+                            {sendingSms === record.rollNumber ? 'Sending...' : 'Notify Parent'}
+                          </Button>
+                        )}
+                        {record.status === 'Present' && (
+                          <span className="text-[10px] uppercase tracking-widest font-bold text-green-500/50 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Recorded
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </AnimatePresence>
                 {currentRecords.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">

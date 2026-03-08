@@ -10,6 +10,6 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "nikky@123")
 # Redis Configuration
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# Application Settings
-MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "0.6"))
-VECTOR_DIMENSION = int(os.getenv("VECTOR_DIMENSION", "512"))
+# Multi-aug HOG 128-dim normalised distance; <= 0.50 = same person
+MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "0.50"))
+VECTOR_DIMENSION = int(os.getenv("VECTOR_DIMENSION", "128"))

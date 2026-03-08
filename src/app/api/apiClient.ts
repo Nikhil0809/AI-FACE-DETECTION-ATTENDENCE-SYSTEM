@@ -106,6 +106,15 @@ export interface AttendanceSession {
   createdAt?: string;
 }
 
+export interface SmsLog {
+  timestamp: string;
+  phone: string;
+  student: string;
+  rollNo: string;
+  message: string;
+  status: string;
+}
+
 // ===========================
 // DEPARTMENT & SECTION APIs
 // ===========================
@@ -777,6 +786,34 @@ export async function healthCheck(): Promise<boolean> {
 }
 
 // ===========================
+// SMS NOTIFICATIONS
+// ===========================
+
+export async function sendSms(phone: string, name: string, rollNo: string): Promise<{ status: string; message: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sms/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, name, rollNo }),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error sending SMS:', error);
+    return { status: 'error', message: 'Failed to connect to SMS gateway' };
+  }
+}
+
+export async function getSmsLogs(): Promise<{ status: string; logs: SmsLog[] }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sms/logs`);
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching SMS logs:', error);
+    return { status: 'error', logs: [] };
+  }
+}
+
+// ===========================
 // CONVENIENT API CLIENT OBJECT
 // ===========================
 
@@ -820,4 +857,7 @@ export const apiClient = {
   connectWebSocket,
   // Health
   healthCheck,
+  // SMS
+  sendSms,
+  getSmsLogs,
 };
