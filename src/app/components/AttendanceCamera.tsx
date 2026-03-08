@@ -1,8 +1,5 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-
-// establish a single WebSocket connection for the module
-const socket: WebSocket = new WebSocket("ws://localhost:8000/ws");
 
 export interface DetectionResult {
   id?: string;
@@ -26,13 +23,23 @@ interface AttendanceCameraProps {
 const AttendanceCamera: React.FC<AttendanceCameraProps> = ({ onDetection }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Keep socket in a ref so cleanup can always reach the current instance
+  const socketRef = useRef<WebSocket | null>(null);
+
+  // Stable reference to the callback so the effect doesn't re-run on every render
+  const onDetectionRef = useRef(onDetection);
+  useEffect(() => {
+    onDetectionRef.current = onDetection;
+  }, [onDetection]);
 
   useEffect(() => {
-    // try to start the webcam when the component mounts
+    // ── 1. Start the webcam ──────────────────────────────────────────────────
+    let stream: MediaStream | null = null;
+
     const startCamera = async () => {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (navigator.mediaDevices?.getUserMedia) {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
           }
@@ -44,44 +51,54 @@ const AttendanceCamera: React.FC<AttendanceCameraProps> = ({ onDetection }) => {
 
     startCamera();
 
-    // Set up WebSocket message handler
+    // ── 2. Open WebSocket per-mount (avoids stale/shared socket) ────────────
+    const ws = new WebSocket('ws://localhost:8000/ws');
+    socketRef.current = ws;
+
     const handleMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'detection_result' && onDetection) {
-          onDetection(data);
+        if (data.type === 'detection_result' && onDetectionRef.current) {
+          onDetectionRef.current(data);
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
       }
     };
 
-    socket.addEventListener('message', handleMessage);
+    ws.addEventListener('message', handleMessage);
 
+    // ── 3. Capture & send frames every 200 ms ───────────────────────────────
     const captureInterval = setInterval(() => {
-      if (videoRef.current && socket.readyState === WebSocket.OPEN && canvasRef.current) {
+      if (
+        videoRef.current &&
+        canvasRef.current &&
+        ws.readyState === WebSocket.OPEN
+      ) {
         const ctx = canvasRef.current.getContext('2d');
         if (!ctx) return;
         ctx.drawImage(videoRef.current, 0, 0, 640, 480);
         const data = canvasRef.current.toDataURL('image/jpeg', 0.5);
-        socket.send(JSON.stringify({
-          type: 'stream_frame',
-          data: data
-        }));
+        ws.send(JSON.stringify({ type: 'stream_frame', data }));
       }
     }, 200);
 
+    // ── 4. Cleanup on unmount ────────────────────────────────────────────────
     return () => {
       clearInterval(captureInterval);
-      socket.removeEventListener('message', handleMessage);
+      ws.removeEventListener('message', handleMessage);
+      // Close the WebSocket cleanly
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
+      socketRef.current = null;
 
-      // stop the camera tracks when component unmounts
-      const stream = videoRef.current?.srcObject as MediaStream | null;
+      // Stop all camera tracks
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
       }
     };
-  }, [onDetection]);
+  }, []); // empty deps – runs once on mount, cleans up on unmount
 
   return (
     <div className="relative w-full h-full min-h-[400px] overflow-hidden rounded-xl bg-black/5">
@@ -112,14 +129,8 @@ const AttendanceCamera: React.FC<AttendanceCameraProps> = ({ onDetection }) => {
         {/* Animated Scanning Line */}
         <motion.div
           className="absolute left-8 right-8 h-[2px] bg-primary shadow-[0_0_10px_rgba(79,142,247,0.8)] z-20"
-          animate={{
-            top: ['10%', '90%', '10%'],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "linear",
-          }}
+          animate={{ top: ['10%', '90%', '10%'] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
         />
 
         {/* Grid Background Overlay */}

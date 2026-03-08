@@ -82,17 +82,38 @@ def find_nearest_user(embedding):
 
 
 def insert_attendance(user_id):
+    """Insert an attendance record, preventing duplicates within the same calendar day."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO attendance (user_id)
-        VALUES (%s)
-    """, (user_id,))
+    try:
+        # Check whether this student already has a record for today
+        cursor.execute("""
+            SELECT id FROM attendance
+            WHERE user_id = %s
+              AND timestamp::date = CURRENT_DATE
+        """, (user_id,))
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+        if cursor.fetchone():
+            # Already marked present today
+            cursor.close()
+            conn.close()
+            return "duplicate"
+
+        cursor.execute("""
+            INSERT INTO attendance (user_id)
+            VALUES (%s)
+        """, (user_id,))
+
+        conn.commit()
+        return "ok"
+    except Exception as e:
+        conn.rollback()
+        print(f"Error inserting attendance: {e}")
+        return "error"
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def insert_faculty(email: str, password: str, name: str, department: str):
@@ -202,25 +223,26 @@ def get_all_faculty():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("""
-            SELECT id, name, email, department, created_at
+            SELECT id, name, email, department_id, role, created_at
             FROM faculty
             ORDER BY name
         """)
-        
+
         results = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         faculty_list = []
         for row in results:
             faculty_list.append({
                 "id": row[0],
                 "name": row[1],
                 "email": row[2],
-                "department": row[3],
-                "joinDate": row[4].isoformat() if row[4] else None
+                "departmentId": row[3],
+                "role": row[4],
+                "joinDate": row[5].isoformat() if row[5] else None
             })
         return faculty_list
     except Exception as e:

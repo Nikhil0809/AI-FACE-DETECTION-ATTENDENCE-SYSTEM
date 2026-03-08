@@ -35,7 +35,8 @@ export function AttendanceMonitoring() {
     });
 
     return () => {
-      ws.close();
+      // connectWebSocket returns null if the connection could not be established
+      if (ws) ws.close();
     };
   }, []);
 
@@ -101,7 +102,7 @@ export function AttendanceMonitoring() {
 
   const itemVariants = {
     hidden: { opacity: 0, scale: 0.95 },
-    show: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
+    show: { opacity: 1, scale: 1, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
   };
 
   return (
@@ -199,8 +200,8 @@ export function AttendanceMonitoring() {
         </Card>
       </motion.div>
 
-    {/* Stats Row */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <motion.div variants={itemVariants}>
           <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:shadow-md transition-shadow">
             <div className="flex items-center gap-4">
@@ -256,62 +257,62 @@ export function AttendanceMonitoring() {
         </motion.div>
       </div >
 
-    {/* Attendance Records List */}
-    <motion.div variants={itemVariants}>
-      <Card className="rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl overflow-hidden">
-        <div
-          className="p-5 border-b border-border/50 bg-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-        >
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-foreground">
-              Recent Attendance Records ({totalRecords})
-            </h3>
+      {/* Attendance Records List */}
+      <motion.div variants={itemVariants}>
+        <Card className="rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl overflow-hidden">
+          <div
+            className="p-5 border-b border-border/50 bg-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-primary" />
+              <h3 className="font-bold text-foreground">
+                Recent Attendance Records ({totalRecords})
+              </h3>
+            </div>
+            <Button variant="outline" size="sm" className="bg-background">Export CSV</Button>
           </div>
-          <Button variant="outline" size="sm" className="bg-background">Export CSV</Button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-secondary/10 border-b border-border/50">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Roll Number</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Student Name</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Time</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/30">
-              {attendanceRecords.length > 0 ? (
-                attendanceRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-secondary/20 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-foreground">{record.rollNumber}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-muted-foreground">{record.studentName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                      <span className="bg-background px-2.5 py-1 rounded-md border border-border/50 shadow-sm text-xs font-medium">
-                        {formatTimestamp(record.timestamp)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Badge
-                        variant="outline"
-                        className="rounded-full bg-accent/10 border-accent/20 text-accent-foreground font-semibold px-3 py-1"
-                      >
-                        ✓ Present
-                      </Badge>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-secondary/10 border-b border-border/50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Roll Number</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Student Name</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Time</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {attendanceRecords.length > 0 ? (
+                  attendanceRecords.map((record) => (
+                    <tr key={record.id} className="hover:bg-secondary/20 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-foreground">{record.rollNumber}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-muted-foreground">{record.studentName}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        <span className="bg-background px-2.5 py-1 rounded-md border border-border/50 shadow-sm text-xs font-medium">
+                          {formatTimestamp(record.timestamp)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <Badge
+                          variant="outline"
+                          className="rounded-full bg-accent/10 border-accent/20 text-accent-foreground font-semibold px-3 py-1"
+                        >
+                          ✓ Present
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
+                      No attendance records yet. Start a session to begin recording attendance.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
-                    No attendance records yet. Start a session to begin recording attendance.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </motion.div>
     </motion.div>
   );
