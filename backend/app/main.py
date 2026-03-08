@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconn
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import json
+import asyncio
+
 
 from app.ai_engine import extract_face_embedding
 from app.models import (
@@ -322,16 +324,47 @@ async def reset_db():
 # -----------------------------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-
     await manager.connect(websocket)
+
+    loop = asyncio.get_event_loop()
 
     try:
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
+            msg_type = message.get("type")
 
-            if message.get("type") == "ping":
+            # ── Keep-alive ────────────────────────────────────────────────────
+            if msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
 
+            # ── Process a camera frame from the client ─────────────────────────
+            elif msg_type == "stream_frame":
+                frame_data = message.get("data", "")
+
+                # offload CPU-heavy work to a thread pool so the event loop stays free
+                result = await loop.run_in_executor(
+                    None, process_frame, frame_data
+                )
+
+                # Send detection result back to THIS client only (not broadcast)
+                await websocket.send_json({
+                    "type": "detection_result",
+                    **result
+                })
+
+                # If a student was matched, also broadcast so other pages update
+                if result.get("status") == "matched" and result.get("note") != "Already marked present today":
+                    await manager.broadcast({
+                        "type": "attendance_marked",
+                        "data": {
+                            "name": result.get("name"),
+                            "roll_number": result.get("roll_number"),
+                        }
+                    })
+
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
         manager.disconnect(websocket)
