@@ -344,6 +344,42 @@ def insert_admin(email: str, password: str, name: str, department: str):
         return False
 
 
+def update_student_by_id(student_id: int, name: str = None, phone_number: str = None) -> bool:
+    """Update a student's name or phone number by ID."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if name:
+            cursor.execute("UPDATE users SET name = %s WHERE id = %s", (name, student_id))
+        if phone_number is not None:
+            cursor.execute("UPDATE users SET phone_number = %s WHERE id = %s", (phone_number, student_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error updating student {student_id}: {e}")
+        return False
+
+
+def delete_student_by_id(student_id: int) -> bool:
+    """Delete a single student and their attendance records (faculty or admin)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Delete attendance records for this student first (FK constraint)
+        cursor.execute("DELETE FROM attendance WHERE user_id = %s", (student_id,))
+        # Delete the student
+        cursor.execute("DELETE FROM users WHERE id = %s", (student_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error deleting student {student_id}: {e}")
+        return False
+
+
 def delete_all_students():
     """Delete all student records (admin only)"""
     try:

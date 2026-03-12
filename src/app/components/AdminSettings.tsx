@@ -17,7 +17,7 @@ export function AdminSettings() {
     description: string;
     onConfirm: () => void;
   } | null>(null);
-  
+
   // Attendance Session state
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [sessionForm, setSessionForm] = useState({
@@ -27,7 +27,7 @@ export function AdminSettings() {
     endTime: '',
     date: '',
   });
-  
+
   // Student Management state
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [studentForm, setStudentForm] = useState({
@@ -108,7 +108,7 @@ export function AdminSettings() {
       setError('Please fill all session fields');
       return;
     }
-    
+
     setLoading(true);
     setError('');
     setSuccess('');
@@ -138,7 +138,7 @@ export function AdminSettings() {
       setError('Please fill student fields');
       return;
     }
-    
+
     setLoading(true);
     setError('');
     setSuccess('');
@@ -189,7 +189,7 @@ export function AdminSettings() {
   };
 
   const handleCancel = () => {
-    setConfirmAction(null);
+    setConfirmDialog(null);
   };
 
   return (
@@ -444,7 +444,7 @@ export function AdminSettings() {
                 className="flex-1"
                 onClick={() => {
                   setShowStudentForm(false);
-                  setConfirmAction(null);
+                  setConfirmDialog(null);
                 }}
                 disabled={loading}
               >

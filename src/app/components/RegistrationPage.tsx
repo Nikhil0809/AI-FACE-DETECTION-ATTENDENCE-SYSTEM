@@ -28,6 +28,7 @@ export function RegistrationPage({ onRegistrationComplete, onBackToLogin }: Regi
     rollNumber: '',
     name: '',
     phoneNumber: '',
+    year: '',
     departmentId: '',
     sectionId: '',
   });
@@ -155,7 +156,7 @@ export function RegistrationPage({ onRegistrationComplete, onBackToLogin }: Regi
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.rollNumber || !formData.name || !formData.phoneNumber || !formData.departmentId || !formData.sectionId) {
+    if (!formData.rollNumber || !formData.name || !formData.phoneNumber || !formData.year || !formData.departmentId || !formData.sectionId) {
       setMessage({ type: 'error', text: 'Please fill all fields' });
       return;
     }
@@ -206,6 +207,7 @@ export function RegistrationPage({ onRegistrationComplete, onBackToLogin }: Regi
       rollNumber: formData.rollNumber,
       name: formData.name,
       phoneNumber: formData.phoneNumber,
+      year: formData.year,
       departmentId: parseInt(formData.departmentId),
       sectionId: parseInt(formData.sectionId),
       imageFile: photo,
@@ -268,6 +270,19 @@ export function RegistrationPage({ onRegistrationComplete, onBackToLogin }: Regi
               <Label htmlFor="phoneNumber">Phone Number</Label>
               <Input id="phoneNumber" name="phoneNumber" type="tel" placeholder="e.g., +91-9876543210"
                 value={formData.phoneNumber} onChange={handleFormChange} className="mt-1.5" required />
+            </div>
+            <div>
+              <Label htmlFor="year">Year</Label>
+              <select id="year" name="year" value={formData.year}
+                onChange={handleFormChange}
+                className="mt-1.5 w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                required>
+                <option value="">Select Year</option>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
             </div>
             <div>
               <Label htmlFor="department">Department</Label>
@@ -428,6 +443,7 @@ export function RegistrationPage({ onRegistrationComplete, onBackToLogin }: Regi
               <div className="space-y-1 text-sm">
                 <p><span className="font-medium text-gray-700">Roll Number:</span> {formData.rollNumber}</p>
                 <p><span className="font-medium text-gray-700">Name:</span> {formData.name}</p>
+                <p><span className="font-medium text-gray-700">Year:</span> {formData.year || 'Not selected'}</p>
                 <p>
                   <span className="font-medium text-gray-700">Department:</span>{' '}
                   {departments.find(d => d.id.toString() === formData.departmentId)?.name || 'Not selected'}

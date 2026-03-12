@@ -10,7 +10,8 @@ from app.models import (
     insert_user, get_all_users, insert_attendance,
     insert_faculty, authenticate_faculty, authenticate_admin,
     get_all_faculty, get_attendance_records, insert_admin,
-    delete_all_students, delete_all_attendance, reset_database
+    delete_all_students, delete_all_attendance, reset_database,
+    delete_student_by_id, update_student_by_id
 )
 from app.worker import process_frame
 from app.sms_service import send_sms_notification, SMS_LOG_FILE
@@ -231,9 +232,38 @@ def get_students(department_id: int = None):
     return {"status": "success", "students": students}
 
 
-# -----------------------------
-# FACE RECOGNITION
-# -----------------------------
+@app.delete("/students/{student_id}")
+async def delete_student(student_id: int):
+    """Delete a single student by ID (faculty or admin operation)."""
+    try:
+        success = delete_student_by_id(student_id)
+        if success:
+            await manager.broadcast({
+                "type": "student_deleted",
+                "data": {"student_id": student_id}
+            })
+            return {"status": "success", "message": f"Student {student_id} deleted successfully"}
+        return {"status": "error", "message": "Student not found or delete failed"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.put("/students/{student_id}")
+async def update_student(
+    student_id: int,
+    name: str = Form(None),
+    phone_number: str = Form(None),
+    is_active: str = Form(None)
+):
+    """Update a student's name / phone (faculty or admin)."""
+    try:
+        success = update_student_by_id(student_id, name=name, phone_number=phone_number)
+        if success:
+            return {"status": "success", "message": "Student updated successfully"}
+        return {"status": "error", "message": "Update failed"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @app.post("/recognize")
 async def recognize_face(file: UploadFile = File(...)):
     try:

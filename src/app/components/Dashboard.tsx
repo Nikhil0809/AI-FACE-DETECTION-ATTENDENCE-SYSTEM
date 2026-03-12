@@ -2,8 +2,6 @@ import { Card } from './ui/card';
 import { Users, UserCheck, UserX, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import {
-  BarChart,
-  Bar,
   LineChart,
   Line,
   PieChart,
@@ -13,47 +11,30 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import { apiClient } from '../api/apiClient';
-import { motion } from 'framer-motion';
 
-interface StudentData {
-  id: string;
-  name: string;
-  rollNumber?: string;
-}
-
-interface AttendanceRecord {
-  id: string;
-  studentId?: string;
-  studentName?: string;
-  rollNumber?: string;
-  timestamp: string;
-  status?: string;
-}
+const STAT_CARDS = [
+  { key: 'total', title: 'Total Students', Icon: Users, bg: '#EEF2FF', iconBg: '#C7D2FE', iconColor: '#1E3A8A', valueColor: '#1E3A8A' },
+  { key: 'present', title: 'Today Present', Icon: UserCheck, bg: '#ECFDF5', iconBg: '#BBF7D0', iconColor: '#059669', valueColor: '#059669' },
+  { key: 'absent', title: 'Today Absent', Icon: UserX, bg: '#FEF2F2', iconBg: '#FECACA', iconColor: '#DC2626', valueColor: '#DC2626' },
+  { key: 'rate', title: 'Attendance Rate', Icon: TrendingUp, bg: '#FFF7ED', iconBg: '#FED7AA', iconColor: '#D97706', valueColor: '#D97706' },
+] as const;
 
 export function Dashboard() {
-  const [students, setStudents] = useState<StudentData[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch real data from backend
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  useEffect(() => { loadDashboardData(); }, []);
 
-  // Listen for real-time updates
   useEffect(() => {
     const ws = apiClient.connectWebSocket((data: any) => {
-      if (data.type === 'attendance_marked' || data.type === 'student_registered') {
-        loadDashboardData();
-      }
+      if (data.type === 'attendance_marked' || data.type === 'student_registered') loadDashboardData();
     });
-    return () => {
-      if (ws) ws.close();
-    };
+    return () => { if (ws) ws.close(); };
   }, []);
 
   const loadDashboardData = async () => {
@@ -65,277 +46,233 @@ export function Dashboard() {
       ]);
       setStudents(studentsData || []);
       setAttendance(attendanceData || []);
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      setStudents([]);
-      setAttendance([]);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch { setStudents([]); setAttendance([]); }
+    finally { setIsLoading(false); }
   };
 
-  // Calculate today's attendance from real data
-  const getTodayAttendance = () => {
-    const today = new Date().toDateString();
-    const todayRecords = attendance.filter(
-      (record) => new Date(record.timestamp).toDateString() === today
-    );
-    return {
-      present: todayRecords.length,
-      absent: Math.max(0, students.length - todayRecords.length),
-    };
+  const today = new Date().toDateString();
+  const todayRecords = attendance.filter((r) => new Date(r.timestamp).toDateString() === today);
+  const todayPresent = todayRecords.length;
+  const totalStudents = students.length;
+  const todayAbsent = Math.max(0, totalStudents - todayPresent);
+  const attendanceRate = totalStudents > 0 ? ((todayPresent / totalStudents) * 100).toFixed(1) : '0';
+
+  const statValues: Record<string, string> = {
+    total: isLoading ? '—' : totalStudents.toString(),
+    present: isLoading ? '—' : todayPresent.toString(),
+    absent: isLoading ? '—' : todayAbsent.toString(),
+    rate: isLoading ? '—' : `${attendanceRate}%`,
   };
 
-  const { present: todayPresent, absent: todayAbsent } = getTodayAttendance();
-  const totalStudents = students.length || 0;
-  const attendancePercentage =
-    totalStudents > 0 ? ((todayPresent / totalStudents) * 100).toFixed(1) : '0';
-
-  // Calculate attendance distribution for pie chart
-  const attendanceDistribution = [
-    { name: 'Present', value: todayPresent, color: '#4F8EF7' }, // Primary
-    { name: 'Absent', value: todayAbsent, color: '#EF4444' }, // Destructive
+  const pieData = [
+    { name: 'Present', value: todayPresent, color: '#1E3A8A' },
+    { name: 'Absent', value: todayAbsent, color: '#EF4444' },
   ];
 
-  // Calculate daily attendance for the month
   const getDailyAttendance = () => {
-    const dailyMap: { [key: string]: number } = {};
-    attendance.forEach((record) => {
-      const date = new Date(record.timestamp).toLocaleDateString('en-US', {
-        month: 'short',
-        day: '2-digit',
-      });
+    const dailyMap: Record<string, number> = {};
+    attendance.forEach((r) => {
+      const date = new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
       dailyMap[date] = (dailyMap[date] || 0) + 1;
     });
     return Object.entries(dailyMap).map(([date, count]) => ({
       date,
-      attendance: totalStudents > 0 ? ((count / totalStudents) * 100).toFixed(0) : 0,
+      attendance: totalStudents > 0 ? Number(((count / totalStudents) * 100).toFixed(0)) : 0,
     }));
   };
 
-  const monthlyData = getDailyAttendance().slice(-30); // Last 30 days
+  const monthlyData = getDailyAttendance().slice(-14);
 
-  // Department data (if department info is available in future, calculate from students)
-  const departmentData = [];
-
-  const statCards = [
-    {
-      title: 'Total Students',
-      value: isLoading ? '-' : totalStudents.toString(),
-      icon: Users,
-      bgColor: 'bg-primary/10',
-      iconColor: 'text-primary',
-    },
-    {
-      title: 'Today Present',
-      value: isLoading ? '-' : todayPresent.toString(),
-      icon: UserCheck,
-      bgColor: 'bg-accent/20',
-      iconColor: 'text-accent-foreground',
-    },
-    {
-      title: 'Today Absent',
-      value: isLoading ? '-' : todayAbsent.toString(),
-      icon: UserX,
-      bgColor: 'bg-destructive/10',
-      iconColor: 'text-destructive',
-    },
-    {
-      title: 'Attendance Rate',
-      value: isLoading ? '-' : `${attendancePercentage}%`,
-      icon: TrendingUp,
-      bgColor: 'bg-secondary/50',
-      iconColor: 'text-primary',
-    },
-  ];
-
-  // Get recent attendance records for activity feed
-  const getRecentActivity = () => {
-    return attendance
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 4)
-      .map((record) => ({
-        action: `${record.studentName || 'Student'} marked as present`,
-        details: `Roll: ${record.rollNumber || 'N/A'}`,
-        time: new Date(record.timestamp).toLocaleTimeString(),
-      }));
-  };
+  const recentActivity = attendance
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 5)
+    .map((r) => ({
+      action: `${r.studentName || 'Student'} marked present`,
+      details: `Roll: ${r.rollNumber || 'N/A'}`,
+      time: new Date(r.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    }));
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <Card
-              key={i}
-              className="p-6 rounded-xl shadow-sm"
-              style={{ backgroundColor: '#f5f5f5' }}
-            >
-              <div className="h-20 bg-gray-300 rounded animate-pulse"></div>
+            <Card key={i} className="p-6 rounded-2xl animate-pulse" style={{ border: '1px solid #E2E8F0' }}>
+              <div className="h-5 bg-indigo-50 rounded w-2/3 mb-3" />
+              <div className="h-8 bg-indigo-50 rounded w-1/2" />
             </Card>
           ))}
         </div>
-        <Card className="p-6 rounded-xl shadow-sm">
-          <div className="h-80 bg-gray-300 rounded animate-pulse"></div>
-        </Card>
       </div>
     );
   }
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
-  };
-
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="space-y-6"
-    >
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <motion.div variants={itemVariants} key={index}>
-              <Card className="p-6 rounded-xl shadow-sm border-border/50 hover:shadow-lg hover:border-primary/20 transition-all duration-300 bg-card/60 backdrop-blur-xl group">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground font-medium">{stat.title}</p>
-                    <h3 className="text-3xl font-bold mt-2 text-foreground tracking-tight">
-                      {stat.value}
-                    </h3>
-                  </div>
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 ${stat.bgColor}`}>
-                    <Icon className={`w-6 h-6 ${stat.iconColor}`} />
-                  </div>
+    <div className="space-y-5">
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {STAT_CARDS.map(({ key, title, Icon, bg, iconBg, iconColor, valueColor }) => (
+          <Card
+            key={key}
+            className="rounded-2xl overflow-hidden transition-all duration-200 group"
+            style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.boxShadow = '0 6px 20px rgba(30,58,138,0.1)')}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)')}
+          >
+            <div className="p-5" style={{ backgroundColor: bg }}>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold" style={{ color: '#64748B' }}>{title}</p>
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: iconBg }}
+                >
+                  <Icon className="w-4.5 h-4.5 w-[18px] h-[18px]" style={{ color: iconColor }} />
                 </div>
-              </Card>
-            </motion.div>
-          );
-        })}
+              </div>
+              <p className="text-2xl font-bold" style={{ color: valueColor }}>
+                {statValues[key]}
+              </p>
+            </div>
+          </Card>
+        ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Attendance Distribution */}
-        <motion.div variants={itemVariants}>
-          <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:shadow-md transition-all h-full">
-            <h3 className="text-lg font-bold mb-4 text-foreground tracking-tight">
-              Today's Attendance
-            </h3>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Pie Chart */}
+        <Card
+          className="rounded-2xl overflow-hidden"
+          style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+        >
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
+            <p className="font-semibold text-sm" style={{ color: '#0F172A' }}>Today's Attendance</p>
+          </div>
+          <div className="p-5" style={{ backgroundColor: '#FAFBFF' }}>
             {totalStudents === 0 ? (
-              <div className="h-80 flex items-center justify-center text-muted-foreground">
+              <div className="h-56 flex items-center justify-center text-sm" style={{ color: '#94A3B8' }}>
                 No attendance data available
               </div>
             ) : (
-              <div className="h-80 flex items-center justify-center">
+              <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={attendanceDistribution}
+                      data={pieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={80}
-                      outerRadius={120}
-                      paddingAngle={5}
+                      innerRadius={65}
+                      outerRadius={95}
+                      paddingAngle={4}
                       dataKey="value"
-                      label={(entry) => `${entry.name}: ${entry.value}`}
+                      label={({ name, value }) => `${name}: ${value}`}
                       stroke="none"
                     >
-                      {attendanceDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      {pieData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{ backgroundColor: 'white', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      contentStyle={{ backgroundColor: '#fff', borderRadius: 12, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             )}
-          </Card>
-        </motion.div>
+            {totalStudents > 0 && (
+              <div className="flex justify-center gap-5 mt-2">
+                {pieData.map(({ name, color, value }) => (
+                  <div key={name} className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                    <span className="text-xs font-medium" style={{ color: '#64748B' }}>
+                      {name}: <strong style={{ color: '#0F172A' }}>{value}</strong>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
 
-        {/* Attendance Trend */}
-        <motion.div variants={itemVariants}>
-          <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:shadow-md transition-all h-full">
-            <h3 className="text-lg font-bold mb-4 text-foreground tracking-tight">
-              Daily Attendance Trend
-            </h3>
+        {/* Line Chart */}
+        <Card
+          className="rounded-2xl overflow-hidden"
+          style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+        >
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
+            <p className="font-semibold text-sm" style={{ color: '#0F172A' }}>Daily Attendance Trend</p>
+          </div>
+          <div className="p-5" style={{ backgroundColor: '#FAFBFF' }}>
             {monthlyData.length === 0 ? (
-              <div className="h-80 flex items-center justify-center text-muted-foreground">
-                No attendance history available
+              <div className="h-56 flex items-center justify-center text-sm" style={{ color: '#94A3B8' }}>
+                No history available
               </div>
             ) : (
-              <div className="h-80">
+              <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={monthlyData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748B' }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                  <LineChart data={monthlyData} margin={{ top: 5, right: 10, bottom: 5, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8EDFF" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: 'white', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      contentStyle={{ backgroundColor: '#fff', borderRadius: 12, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}
                     />
-                    <Legend />
                     <Line
                       type="monotone"
                       dataKey="attendance"
-                      stroke="#4F8EF7"
-                      strokeWidth={3}
+                      stroke="#1E3A8A"
+                      strokeWidth={2.5}
                       name="Attendance %"
-                      dot={{ fill: '#4F8EF7', strokeWidth: 2, r: 4, stroke: 'white' }}
-                      activeDot={{ r: 6, strokeWidth: 0 }}
+                      dot={{ fill: '#1E3A8A', strokeWidth: 2, r: 3, stroke: '#ffffff' }}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
-          </Card>
-        </motion.div>
+          </div>
+        </Card>
       </div>
 
       {/* Recent Activity */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl">
-          <h3 className="text-lg font-bold mb-4 text-foreground tracking-tight">
-            Recent Activity
-          </h3>
-          {attendance.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No recent activity. Registrations will appear here.
+      <Card
+        className="rounded-2xl overflow-hidden"
+        style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+      >
+        <div className="px-5 py-4" style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
+          <p className="font-semibold text-sm" style={{ color: '#0F172A' }}>Recent Activity</p>
+        </div>
+        <div className="p-5" style={{ backgroundColor: '#FAFBFF' }}>
+          {recentActivity.length === 0 ? (
+            <div className="py-10 text-center text-sm" style={{ color: '#94A3B8' }}>
+              No recent activity yet.
             </div>
           ) : (
-            <div className="space-y-3">
-              {getRecentActivity().map((activity, index) => (
+            <div className="space-y-2">
+              {recentActivity.map((a, i) => (
                 <div
-                  key={index}
-                  className="flex items-start gap-4 p-4 rounded-xl hover:bg-secondary/40 transition-colors border border-transparent hover:border-border/50"
+                  key={i}
+                  className="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors"
+                  style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0' }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#F8FAFF')}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#FFFFFF')}
                 >
-                  <div
-                    className="w-2.5 h-2.5 rounded-full mt-1.5 shadow-sm bg-primary"
-                  ></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-foreground">{activity.action}</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">{activity.details}</p>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#1E3A8A' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate" style={{ color: '#0F172A' }}>{a.action}</p>
+                    <p className="text-xs mt-0.5 truncate" style={{ color: '#94A3B8' }}>{a.details}</p>
                   </div>
-                  <p className="text-xs font-medium text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md">{activity.time}</p>
+                  <span
+                    className="text-xs font-medium px-2 py-1 rounded-lg flex-shrink-0"
+                    style={{ backgroundColor: '#EEF2FF', color: '#1E3A8A' }}
+                  >
+                    {a.time}
+                  </span>
                 </div>
               ))}
             </div>
           )}
-        </Card>
-      </motion.div>
-    </motion.div>
+        </div>
+      </Card>
+    </div>
   );
 }

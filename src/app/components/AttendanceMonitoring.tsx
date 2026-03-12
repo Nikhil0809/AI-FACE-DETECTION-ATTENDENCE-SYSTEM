@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { ScanFace, Clock, Users, CheckCircle2, XCircle, StopCircle } from 'lucide-react';
+import { ScanFace, Clock, Users, CheckCircle2, StopCircle, RefreshCw } from 'lucide-react';
 import { Progress } from './ui/progress';
 import { getAttendance, AttendanceRecord, connectWebSocket } from '../api/apiClient';
-import { motion } from 'framer-motion';
 
 export function AttendanceMonitoring() {
   const [sessionTime, setSessionTime] = useState(0);
@@ -13,48 +11,33 @@ export function AttendanceMonitoring() {
   const [loading, setLoading] = useState(true);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
-  // Load attendance records on mount
   useEffect(() => {
-    const loadAttendance = async () => {
+    const load = async () => {
       setLoading(true);
       const records = await getAttendance(100);
       setAttendanceRecords(records);
       setLoading(false);
     };
-
-    loadAttendance();
+    load();
   }, []);
 
-  // Set up WebSocket for real-time updates
   useEffect(() => {
     const ws = connectWebSocket((data) => {
       if (data.type === 'attendance_marked') {
-        // Reload attendance records
         getAttendance(100).then(setAttendanceRecords);
       }
     });
-
-    return () => {
-      // connectWebSocket returns null if the connection could not be established
-      if (ws) ws.close();
-    };
+    return () => { if (ws) ws.close(); };
   }, []);
 
   useEffect(() => {
     if (!isSessionActive) return;
-
     const interval = setInterval(() => {
       setSessionTime((prev) => {
-        const newTime = prev + 1;
-        // Auto-stop after 8 hours (28800 seconds) to prevent infinite running
-        if (newTime >= 28800) {
-          setIsSessionActive(false);
-          return prev;
-        }
-        return newTime;
+        if (prev + 1 >= 28800) { setIsSessionActive(false); return prev; }
+        return prev + 1;
       });
     }, 1000);
-
     return () => clearInterval(interval);
   }, [isSessionActive]);
 
@@ -66,254 +49,237 @@ export function AttendanceMonitoring() {
 
   const formatTimestamp = (timestamp: string) => {
     try {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
+      return new Date(timestamp).toLocaleTimeString('en-IN', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
       });
-    } catch {
-      return timestamp;
-    }
+    } catch { return timestamp; }
   };
-
-  if (loading) {
-    return (
-      <Card className="p-6 rounded-xl shadow-sm">
-        <div className="animate-pulse space-y-4">
-          <div className="h-10 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-8 bg-gray-200 rounded w-full"></div>
-        </div>
-      </Card>
-    );
-  }
 
   const totalRecords = attendanceRecords.length;
   const uniqueStudents = new Set(attendanceRecords.map((r) => r.rollNumber)).size;
+  const sessionPct = Math.min(100, (sessionTime / 28800) * 100);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, scale: 0.95 },
-    show: { opacity: 1, scale: 1, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
-  };
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        {[...Array(3)].map((_, i) => (
+          <Card key={i} className="p-6 rounded-2xl animate-pulse" style={{ border: '1px solid #E2E8F0' }}>
+            <div className="h-8 bg-indigo-50 rounded w-1/3 mb-3" />
+            <div className="h-4 bg-indigo-50 rounded w-full" />
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="space-y-6"
-    >
+    <div className="space-y-5">
       {/* Session Status Card */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-primary/5 backdrop-blur-md relative overflow-hidden">
-          {/* Decorative Blob */}
-          <div className="absolute top-[-50%] right-[-10%] w-64 h-64 bg-primary/10 rounded-full blur-[80px] pointer-events-none" />
-
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-            <div className="flex items-center gap-5">
+      <Card
+        className="rounded-2xl overflow-hidden"
+        style={{ border: '1px solid #C7D2FE', boxShadow: '0 4px 20px rgba(30,58,138,0.08)' }}
+      >
+        <div
+          className="px-6 py-5"
+          style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', borderBottom: '1px solid #C7D2FE' }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
               <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-md"
+                style={{
+                  background: isSessionActive
+                    ? 'linear-gradient(135deg, #1E3A8A 0%, #1e40af 100%)'
+                    : 'linear-gradient(135deg, #64748B 0%, #475569 100%)',
+                }}
               >
-                <ScanFace className="w-8 h-8" />
+                <ScanFace className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-foreground tracking-tight">
+                <h2 className="text-base font-bold" style={{ color: '#0F172A' }}>
                   {isSessionActive ? 'Live Attendance Session' : 'Session Ended'}
                 </h2>
-                <p className="text-sm text-muted-foreground font-medium mt-1">
+                <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
                   Real-time Attendance Monitoring
                 </p>
-                <div className="flex items-center gap-4 mt-2">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm font-medium">{formatTime(sessionTime)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm font-medium">
-                      {totalRecords} Records
+                <div className="flex items-center gap-4 mt-1.5">
+                  <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: '#374151' }}>
+                    <Clock className="w-3.5 h-3.5" style={{ color: '#64748B' }} />
+                    {formatTime(sessionTime)}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: '#374151' }}>
+                    <Users className="w-3.5 h-3.5" style={{ color: '#64748B' }} />
+                    {totalRecords} Records
+                  </span>
+                  {isSessionActive && (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#059669' }}>
+                      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#10B981' }} />
+                      Live
                     </span>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4 mt-4 md:mt-0">
+
+            <div>
               {isSessionActive ? (
                 <Button
                   onClick={() => setIsSessionActive(false)}
-                  className="flex items-center gap-2 font-semibold shadow-sm w-full sm:w-auto"
-                  variant="destructive"
-                  size="lg"
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl"
+                  style={{ background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', boxShadow: '0 4px 12px rgba(220,38,38,0.3)' }}
                 >
-                  <StopCircle className="w-5 h-5" />
+                  <StopCircle className="w-4 h-4" />
                   End Session
                 </Button>
               ) : (
                 <Button
-                  onClick={() => {
-                    setIsSessionActive(true);
-                    setSessionTime(0);
-                  }}
-                  className="flex items-center gap-2 font-semibold shadow-sm shadow-primary/20 w-full sm:w-auto"
-                  size="lg"
+                  onClick={() => { setIsSessionActive(true); setSessionTime(0); }}
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl"
+                  style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #1e40af 100%)', boxShadow: '0 4px 12px rgba(30,58,138,0.3)' }}
                 >
-                  <ScanFace className="w-5 h-5" />
+                  <ScanFace className="w-4 h-4" />
                   Start New Session
                 </Button>
               )}
-              {isSessionActive && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-background/50 rounded-lg border border-border/50 backdrop-blur-sm hidden sm:flex">
-                  <div className="w-2.5 h-2.5 rounded-full animate-pulse bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>
-                  <span className="text-sm font-medium text-foreground">Recording</span>
-                </div>
-              )}
             </div>
           </div>
-          {isSessionActive && (
-            <div className="flex items-center gap-2 mt-3">
-              <div
-                className="w-2 h-2 rounded-full animate-pulse"
-                style={{ backgroundColor: '#10B981' }}
-              ></div>
-              <span className="text-sm text-gray-600">Recording...</span>
-            </div>
-          )}
+        </div>
 
-          <div className="mt-8 relative z-10 w-full max-w-2xl">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-muted-foreground">Session Uptime Limit (8 Hours Max)</span>
-              <span className="text-sm font-bold text-primary">
-                {Math.min(100, (sessionTime / 28800) * 100).toFixed(1)}%
-              </span>
-            </div>
-            <Progress value={Math.min(100, (sessionTime / 28800) * 100)} className="h-2.5 bg-background border border-border/50" />
+        <div className="px-6 py-3" style={{ backgroundColor: '#FAFBFF' }}>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-medium" style={{ color: '#64748B' }}>
+              Session Uptime Limit (8h Max)
+            </span>
+            <span className="text-xs font-bold" style={{ color: '#1E3A8A' }}>
+              {sessionPct.toFixed(1)}%
+            </span>
           </div>
-        </Card>
-      </motion.div>
+          <Progress value={sessionPct} className="h-1.5" />
+        </div>
+      </Card>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div variants={itemVariants}>
-          <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center bg-primary/10 text-primary"
-              >
-                <Users className="w-7 h-7" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Records</p>
-                <h3 className="text-2xl font-bold text-foreground">
-                  {totalRecords}
-                </h3>
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={itemVariants}>
-          <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center bg-accent/20 text-accent-foreground"
-              >
-                <CheckCircle2 className="w-7 h-7" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Unique Students</p>
-                <h3 className="text-2xl font-bold text-foreground">
-                  {uniqueStudents}
-                </h3>
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={itemVariants}>
-          <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center bg-secondary/50 text-secondary-foreground"
-              >
-                <Clock className="w-7 h-7" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Session Time</p>
-                <h3 className="text-2xl font-bold text-foreground tracking-tight">
-                  {formatTime(sessionTime)}
-                </h3>
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-      </div >
-
-      {/* Attendance Records List */}
-      <motion.div variants={itemVariants}>
-        <Card className="rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl overflow-hidden">
-          <div
-            className="p-5 border-b border-border/50 bg-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {[
+          { label: 'Total Records', value: totalRecords, Icon: Users, bg: '#EEF2FF', iconColor: '#1E3A8A', iconBg: '#C7D2FE' },
+          { label: 'Unique Students', value: uniqueStudents, Icon: CheckCircle2, bg: '#ECFDF5', iconColor: '#059669', iconBg: '#BBF7D0' },
+          { label: 'Session Time', value: formatTime(sessionTime), Icon: Clock, bg: '#FFF7ED', iconColor: '#D97706', iconBg: '#FED7AA' },
+        ].map(({ label, value, Icon, bg, iconColor, iconBg }) => (
+          <Card
+            key={label}
+            className="rounded-2xl overflow-hidden transition-all duration-200"
+            style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
           >
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-primary" />
-              <h3 className="font-bold text-foreground">
-                Recent Attendance Records ({totalRecords})
-              </h3>
+            <div className="p-5 flex items-center gap-4" style={{ backgroundColor: bg }}>
+              <div
+                className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: iconBg }}
+              >
+                <Icon className="w-5 h-5" style={{ color: iconColor }} />
+              </div>
+              <div>
+                <p className="text-xs font-medium" style={{ color: '#64748B' }}>{label}</p>
+                <p className="text-xl font-bold mt-0.5" style={{ color: '#0F172A' }}>{value}</p>
+              </div>
             </div>
-            <Button variant="outline" size="sm" className="bg-background">Export CSV</Button>
+          </Card>
+        ))}
+      </div>
+
+      {/* Records Table */}
+      <Card
+        className="rounded-2xl overflow-hidden"
+        style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+      >
+        <div
+          className="px-5 py-4 flex items-center justify-between"
+          style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EEF2FF' }}>
+              <CheckCircle2 className="w-3.5 h-3.5" style={{ color: '#1E3A8A' }} />
+            </div>
+            <span className="font-semibold text-sm" style={{ color: '#0F172A' }}>
+              Recent Attendance Records ({totalRecords})
+            </span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-secondary/10 border-b border-border/50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Roll Number</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Student Name</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Time</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/30">
-                {attendanceRecords.length > 0 ? (
-                  attendanceRecords.map((record) => (
-                    <tr key={record.id} className="hover:bg-secondary/20 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-foreground">{record.rollNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-muted-foreground">{record.studentName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        <span className="bg-background px-2.5 py-1 rounded-md border border-border/50 shadow-sm text-xs font-medium">
-                          {formatTimestamp(record.timestamp)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <Badge
-                          variant="outline"
-                          className="rounded-full bg-accent/10 border-accent/20 text-accent-foreground font-semibold px-3 py-1"
-                        >
-                          ✓ Present
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
-                      No attendance records yet. Start a session to begin recording attendance.
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1.5 text-xs font-semibold rounded-xl"
+            style={{ borderColor: '#C7D2FE', color: '#1E3A8A', backgroundColor: '#EEF2FF' }}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Export CSV
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ backgroundColor: '#F8FAFF', borderBottom: '1px solid #E2E8F0' }}>
+                {['Roll Number', 'Student Name', 'Time', 'Status'].map((h) => (
+                  <th key={h} className="px-5 py-3 text-left text-xs font-semibold" style={{ color: '#64748B' }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {attendanceRecords.length > 0 ? (
+                attendanceRecords.map((record) => (
+                  <tr
+                    key={record.id}
+                    style={{ borderBottom: '1px solid #F1F5F9' }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#F8FAFF')}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'transparent')}
+                  >
+                    <td className="px-5 py-3 font-bold text-xs" style={{ color: '#1E3A8A' }}>
+                      {record.rollNumber}
+                    </td>
+                    <td className="px-5 py-3 font-medium text-sm" style={{ color: '#0F172A' }}>
+                      {record.studentName}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span
+                        className="text-xs font-medium px-2 py-1 rounded-lg"
+                        style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}
+                      >
+                        {formatTimestamp(record.timestamp)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span
+                        className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                        style={{ backgroundColor: '#DCFCE7', color: '#059669' }}
+                      >
+                        ✓ Present
+                      </span>
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </motion.div>
-    </motion.div>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-5 py-14 text-center">
+                    <div
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+                      style={{ backgroundColor: '#EEF2FF' }}
+                    >
+                      <ScanFace className="w-7 h-7" style={{ color: '#A5B4FC' }} />
+                    </div>
+                    <p className="text-sm font-medium" style={{ color: '#94A3B8' }}>
+                      No attendance records yet.
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: '#CBD5E1' }}>
+                      Start a recognition session to begin recording.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
   );
 }

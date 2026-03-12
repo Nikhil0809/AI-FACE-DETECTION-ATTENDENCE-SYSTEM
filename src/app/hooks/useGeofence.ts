@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 
-// ── Vignan Institute of Pharmaceutical Technology, Duvvada, Visakhapatnam ──
+// ── Vignan's Institute of Information Technology (VIIT), Duvvada, Visakhapatnam ──
 export const CAMPUS_COORDS = {
-    lat: 17.7562,  // 17.7562° N, 83.2128° E  (Duvvada, Vizag)
-    lng: 83.2128,
-    radiusMeters: 500,  // 500m radius around campus gate
+    lat: 17.7104743,  // 17.7104743° N  (Vadlapudi, Duvvada, Gajuwaka, Vizag)
+    lng: 83.1659175,  // 83.1659175° E
+    radiusMeters: 1000,  // 1 km radius around campus
 };
 
 export type GeofenceStatus = 'checking' | 'inside' | 'outside' | 'denied' | 'unavailable';

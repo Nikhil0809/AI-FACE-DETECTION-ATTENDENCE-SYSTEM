@@ -26,10 +26,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { Search, Plus, Upload, Edit, Trash2, Download, UserPlus } from 'lucide-react';
-import { Badge } from './ui/badge';
+import { Search, Upload, Edit, Trash2, Download, UserPlus, Users } from 'lucide-react';
 import { getStudents, Student, updateStudent, deleteStudent } from '../api/apiClient';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface StudentManagementProps {
   onAddStudent: () => void;
@@ -62,7 +60,7 @@ export function StudentManagement({ onAddStudent, facultyDepartmentId, userRole 
     };
 
     loadStudents();
-  }, []);
+  }, [facultyDepartmentId]);
 
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
@@ -147,65 +145,54 @@ export function StudentManagement({ onAddStudent, facultyDepartmentId, userRole 
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Card className="p-6 rounded-xl shadow-sm">
-          <div className="animate-pulse space-y-4">
-            <div className="h-10 bg-gray-200 rounded w-1/3"></div>
-            <div className="h-8 bg-gray-200 rounded w-full"></div>
-          </div>
-        </Card>
+      <div className="space-y-5">
+        {[...Array(2)].map((_, i) => (
+          <Card key={i} className="p-6 rounded-2xl animate-pulse" style={{ border: '1px solid #E2E8F0' }}>
+            <div className="h-6 bg-indigo-50 rounded w-1/3 mb-3" />
+            <div className="h-4 bg-indigo-50 rounded w-full" />
+          </Card>
+        ))}
       </div>
     );
   }
 
-  const containerVariants: any = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants: any = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-  };
-
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="space-y-6"
-    >
+    <div className="space-y-5">
       {/* Faculty Dept Banner */}
       {userRole === 'faculty' && facultyDepartmentId && (
-        <motion.div variants={itemVariants}>
-          <div className="rounded-xl px-5 py-3 bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium flex items-center gap-2">
-            <span className="text-base">🏫</span>
+        <div
+          className="flex items-center gap-3 px-5 py-3 rounded-xl"
+          style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '1px solid #C7D2FE' }}
+        >
+          <span className="text-base">🏫</span>
+          <span className="text-sm font-medium" style={{ color: '#1E3A8A' }}>
             Showing students from your department only
-          </div>
-        </motion.div>
+          </span>
+        </div>
       )}
       {/* Header Actions */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl">
-          <div className="flex flex-col lg:flex-row gap-4">
+      <div>
+        <Card
+          className="rounded-2xl overflow-hidden"
+          style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+        >
+          <div className="px-5 py-4 flex flex-col lg:flex-row gap-3" style={{ backgroundColor: '#FAFBFF' }}>
             {/* Search */}
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: '#94A3B8' }} />
+              <input
                 type="text"
-                placeholder="Search by name or roll number..."
+                placeholder="Search by name or roll number…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="w-full pl-9 pr-4 py-2 text-sm rounded-xl outline-none"
+                style={{ border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#0F172A' }}
               />
             </div>
 
             {/* Branch Filter */}
             <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-              <SelectTrigger className="w-full lg:w-48">
+              <SelectTrigger className="w-full lg:w-48 rounded-xl" style={{ border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
                 <SelectValue placeholder="Branch" />
               </SelectTrigger>
               <SelectContent>
@@ -237,7 +224,7 @@ export function StudentManagement({ onAddStudent, facultyDepartmentId, userRole 
 
             {/* Section Filter */}
             <Select value={selectedSection} onValueChange={setSelectedSection}>
-              <SelectTrigger className="w-full lg:w-48">
+              <SelectTrigger className="w-full lg:w-48 rounded-xl" style={{ border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
                 <SelectValue placeholder="Section" />
               </SelectTrigger>
               <SelectContent>
@@ -250,7 +237,7 @@ export function StudentManagement({ onAddStudent, facultyDepartmentId, userRole 
 
             {/* Year Filter */}
             <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-full lg:w-48">
+              <SelectTrigger className="w-full lg:w-48 rounded-xl" style={{ border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -263,113 +250,140 @@ export function StudentManagement({ onAddStudent, facultyDepartmentId, userRole 
             </Select>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
-              <Button
-                className="flex items-center gap-2 font-semibold shadow-sm w-full lg:w-auto"
+            <div className="flex gap-2">
+              <button
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #1e40af 100%)', boxShadow: '0 4px 12px rgba(30,58,138,0.25)' }}
                 onClick={handleAddStudent}
               >
                 <UserPlus className="w-4 h-4" />
                 Add Student
-              </Button>
-              <Button
-                variant="outline"
-                className="flex items-center gap-2 font-semibold shadow-sm w-full lg:w-auto bg-background/50"
+              </button>
+              <button
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl"
+                style={{ border: '1px solid #C7D2FE', color: '#1E3A8A', backgroundColor: '#EEF2FF' }}
                 onClick={handleCsvUpload}
               >
                 <Upload className="w-4 h-4" />
                 CSV Upload
-              </Button>
+              </button>
             </div>
           </div>
         </Card>
-      </motion.div>
+      </div>
 
       {/* Students Table */}
-      <motion.div variants={itemVariants}>
-        <Card className="rounded-xl shadow-sm overflow-hidden border-border/50 bg-card/60 backdrop-blur-xl">
-          <div className="p-6 border-b border-border/50 bg-secondary/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-bold text-foreground tracking-tight">
-                Student Records
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Showing {filteredStudents.length} students
-              </p>
-            </div>
-            <Button variant="outline" className="flex items-center gap-2 bg-background/50 shadow-sm" onClick={handleExportCsv}>
-              <Download className="w-4 h-4" />
-              Export CSV
-            </Button>
+      <Card
+        className="rounded-2xl overflow-hidden"
+        style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+      >
+        <div
+          className="px-5 py-4 flex items-center justify-between"
+          style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}
+        >
+          <div>
+            <p className="font-semibold text-sm" style={{ color: '#0F172A' }}>Student Records</p>
+            <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>Showing {filteredStudents.length} students</p>
           </div>
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl"
+            style={{ border: '1px solid #C7D2FE', color: '#1E3A8A', backgroundColor: '#EEF2FF' }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export CSV
+          </button>
+        </div>
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-secondary/20">
-                <TableRow className="border-border/50">
-                  <TableHead className="font-semibold text-muted-foreground">Roll No</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">Name</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">Branch</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">Section</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">Year</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">Phone</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">Status</TableHead>
-                  <TableHead className="text-right font-semibold text-muted-foreground">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-border/30">
-                <AnimatePresence>
-                  {filteredStudents.map((student) => (
-                    <motion.tr
-                      key={student.rollNo}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="hover:bg-secondary/20 transition-colors"
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow style={{ backgroundColor: '#F8FAFF', borderBottom: '1px solid #E2E8F0' }}>
+                {['Roll No', 'Name', 'Branch', 'Section', 'Year', 'Phone', 'Status', ''].map(h => (
+                  <TableHead key={h} className="text-xs font-semibold" style={{ color: '#64748B' }}>{h}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredStudents.map((student) => (
+                <TableRow
+                  key={student.rollNo}
+                  style={{ borderBottom: '1px solid #F1F5F9' }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#F8FAFF')}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'transparent')}
+                >
+                  <TableCell className="font-bold text-xs" style={{ color: '#1E3A8A' }}>{student.rollNo}</TableCell>
+                  <TableCell className="font-medium text-sm" style={{ color: '#0F172A' }}>{student.name}</TableCell>
+                  <TableCell className="text-xs" style={{ color: '#64748B' }}>{student.branch}</TableCell>
+                  <TableCell className="text-xs" style={{ color: '#64748B' }}>{student.section}</TableCell>
+                  <TableCell className="text-xs" style={{ color: '#64748B' }}>{student.year}</TableCell>
+                  <TableCell className="text-xs" style={{ color: '#64748B' }}>{student.phone}</TableCell>
+                  <TableCell>
+                    <span
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                      style={student.status === 'Active'
+                        ? { backgroundColor: '#DCFCE7', color: '#059669' }
+                        : { backgroundColor: '#FEE2E2', color: '#DC2626' }}
                     >
-                      <TableCell className="font-semibold text-foreground">{student.rollNo}</TableCell>
-                      <TableCell className="font-medium text-muted-foreground">{student.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{student.branch}</TableCell>
-                      <TableCell className="text-muted-foreground">{student.section}</TableCell>
-                      <TableCell className="text-muted-foreground">{student.year}</TableCell>
-                      <TableCell className="text-muted-foreground">{student.phone}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`rounded-full px-3 py-1 font-semibold ${student.status === 'Active'
-                            ? 'bg-accent/10 border-accent/20 text-accent-foreground'
-                            : 'bg-destructive/10 border-destructive/20 text-destructive'
-                            }`}
+                      {student.status || 'Active'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {userRole === 'admin' && (
+                        <button
+                          className="p-1.5 rounded-lg transition-colors"
+                          onClick={() => handleEditStudent(student)}
+                          title="Edit"
+                          style={{ color: '#94A3B8' }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = '#EEF2FF';
+                            (e.currentTarget as HTMLElement).style.color = '#1E3A8A';
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = '#94A3B8';
+                          }}
                         >
-                          {student.status || 'Active'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {userRole === 'admin' && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => handleEditStudent(student)}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors text-muted-foreground" onClick={() => handleDeleteStudent(student)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-                {filteredStudents.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                      No students found matching your criteria.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
-      </motion.div>
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        className="p-1.5 rounded-lg transition-colors"
+                        onClick={() => handleDeleteStudent(student)}
+                        title="Delete"
+                        style={{ color: '#94A3B8' }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLElement).style.backgroundColor = '#FEE2E2';
+                          (e.currentTarget as HTMLElement).style.color = '#DC2626';
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                          (e.currentTarget as HTMLElement).style.color = '#94A3B8';
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredStudents.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-14">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#EEF2FF' }}>
+                        <Users className="w-6 h-6" style={{ color: '#A5B4FC' }} />
+                      </div>
+                      <p className="text-sm font-medium" style={{ color: '#94A3B8' }}>No students found.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
 
       {/* Edit Student Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
@@ -429,6 +443,6 @@ export function StudentManagement({ onAddStudent, facultyDepartmentId, userRole 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </motion.div>
+    </div>
   );
 }

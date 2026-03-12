@@ -85,7 +85,7 @@ export default function App() {
     switch (activePage) {
       case 'dashboard':
         // Show FacultyDashboard for faculty, regular Dashboard for admin
-        return userRole === 'faculty' ? <FacultyDashboard /> : <Dashboard />;
+        return userRole === 'faculty' ? <FacultyDashboard currentUser={currentUser} /> : <Dashboard />;
       case 'students':
         return (
           <StudentManagement

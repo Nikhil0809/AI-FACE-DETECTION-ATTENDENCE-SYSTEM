@@ -1,0 +1,18 @@
+[
+    {
+        "timestamp": "2026-03-09 15:17:16",
+        "phone": "7993636756",
+        "student": "S.Pravallika sri",
+        "rollNo": "24l31a43f4",
+        "message": "Dear Parent, your ward S.Pravallika sri (24l31a43f4) was ABSENT for today's session at Vignan Institute. Please check.",
+        "status": "Delivered \u2705"
+    },
+    {
+        "timestamp": "2026-03-09 15:17:04",
+        "phone": "7995820159",
+        "student": "P Raja Sekhar",
+        "rollNo": "25L35A4315",
+        "message": "Dear Parent, your ward P Raja Sekhar (25L35A4315) was ABSENT for today's session at Vignan Institute. Please check.",
+        "status": "Delivered \u2705"
+    }
+]

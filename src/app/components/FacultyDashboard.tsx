@@ -11,12 +11,30 @@ import {
   Clock,
   Play,
   Square,
-  Wifi,
   AlertCircle,
+  Trash2,
+  GraduationCap,
+  Download,
+  Wifi,
+  Database,
+  Shield,
+  Cpu,
+  RefreshCw,
+  FileText,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 import { Progress } from './ui/progress';
 import AttendanceCamera, { DetectionResult } from './AttendanceCamera';
 import { apiClient } from '../api/apiClient';
+import { deleteStudent } from '../api/apiClient';
+import { getDepartments } from '../api/apiClient';
 
 interface DetectedStudent {
   id: string;
@@ -31,71 +49,150 @@ interface StudentData {
   id: number | string;
   name: string;
   rollNo: string;
+  branch?: string;
+  section?: string;
+  phone?: string;
 }
 
-export function FacultyDashboard() {
+interface FacultyDashboardProps {
+  currentUser?: {
+    id?: number;
+    name?: string;
+    email?: string;
+    departmentId?: number;
+    role?: string;
+  };
+}
+
+// ── Stat Chip ─────────────────────────────────────────────────────────────────
+function StatChip({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <div
+      className="flex items-center gap-2 px-4 py-2 rounded-lg"
+      style={{ backgroundColor: '#F8FAFF', border: '1px solid #E2E8F0' }}
+    >
+      <span className="text-xs font-medium" style={{ color: '#64748B' }}>
+        {label}
+      </span>
+      <span className="text-lg font-bold" style={{ color }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ── System Status Row ─────────────────────────────────────────────────────────
+function StatusRow({
+  label,
+  value,
+  active,
+  isCamera,
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+  isCamera?: boolean;
+}) {
+  const dotColor = active ? '#10B981' : '#F59E0B';
+  const textColor = active ? '#059669' : '#D97706';
+  const bgColor = active ? '#ECFDF5' : '#FFFBEB';
+
+  return (
+    <div
+      className="flex items-center justify-between px-4 py-2.5 rounded-xl"
+      style={{ backgroundColor: '#F8FAFF', border: '1px solid #EEF2FF' }}
+    >
+      <span className="text-sm font-medium" style={{ color: '#374151' }}>
+        {label}
+      </span>
+      <span
+        className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+        style={{ backgroundColor: bgColor, color: textColor }}
+      >
+        {isCamera && !active ? null : (
+          <span
+            className="w-1.5 h-1.5 rounded-full inline-block"
+            style={{ backgroundColor: dotColor }}
+          />
+        )}
+        {value}
+      </span>
+    </div>
+  );
+}
+
+export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
+  const [activeTab, setActiveTab] = useState<'attendance' | 'students' | 'logs'>('attendance');
   const [isScanning, setIsScanning] = useState(false);
   const [sessionTime, setSessionTime] = useState(0);
   const [detectedStudents, setDetectedStudents] = useState<DetectedStudent[]>([]);
   const [currentDetection, setCurrentDetection] = useState<string | null>(null);
   const [allStudents, setAllStudents] = useState<StudentData[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+  const [departmentName, setDepartmentName] = useState<string>('Your Department');
 
-  // Throttle: only add a new Unregistered entry at most once per 5 s
+  const [deletingStudent, setDeletingStudent] = useState<StudentData | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
   const lastUnknownAtRef = useRef<number>(0);
   const UNKNOWN_COOLDOWN_MS = 5000;
 
-  // Load students from backend
+  const facultyDepartmentId = currentUser?.departmentId;
+
   useEffect(() => {
-    loadStudents();
-  }, []);
+    const loadDeptName = async () => {
+      if (!facultyDepartmentId) return;
+      try {
+        const depts = await getDepartments();
+        const dept = depts.find((d) => d.id === facultyDepartmentId);
+        if (dept) setDepartmentName(dept.name);
+      } catch { /* keep default */ }
+    };
+    loadDeptName();
+  }, [facultyDepartmentId]);
+
+  useEffect(() => { loadStudents(); }, [facultyDepartmentId]);
 
   const loadStudents = async () => {
     try {
       setIsLoadingStudents(true);
-      const students = await apiClient.getStudents();
+      const students = await apiClient.getStudents(facultyDepartmentId ?? undefined);
       setAllStudents(students || []);
-    } catch (error) {
-      console.error('Error loading students:', error);
-      setAllStudents([]);
-    } finally {
-      setIsLoadingStudents(false);
-    }
+    } catch { setAllStudents([]); } finally { setIsLoadingStudents(false); }
   };
 
-  // Listen for new student registrations
   useEffect(() => {
     const ws = apiClient.connectWebSocket((data: any) => {
-      if (data.type === 'student_registered') {
-        loadStudents();
-      }
+      if (data.type === 'student_registered' || data.type === 'student_deleted') loadStudents();
     });
-    return () => {
-      if (ws) ws.close();
-    };
+    return () => { if (ws) ws.close(); };
   }, []);
 
-  // Session timer
   useEffect(() => {
     if (!isScanning) return;
-    const interval = setInterval(() => {
-      setSessionTime((prev) => prev + 1);
-    }, 1000);
+    const interval = setInterval(() => setSessionTime((p) => p + 1), 1000);
     return () => clearInterval(interval);
   }, [isScanning]);
 
-
-  // When the camera component reports a result, add it to the list
   const handleCameraDetection = (data: DetectionResult) => {
     if (!data.status || data.status === 'no_face' || data.status === 'error') return;
-
     const isMatched = data.status === 'matched' && !!data.name;
     const displayName = isMatched ? data.name : 'Unregistered Person';
-
     setCurrentDetection(displayName);
 
     if (isMatched) {
-      // Matched: deduplicate by roll number
       const newDetection: DetectedStudent = {
         id: data.id ?? `matched-${Date.now()}`,
         rollNo: data.rollNo ?? data.roll_number ?? '—',
@@ -109,11 +206,9 @@ export function FacultyDashboard() {
         return [newDetection, ...prev.slice(0, 49)];
       });
     } else {
-      // Unknown: throttle to once per UNKNOWN_COOLDOWN_MS
       const now = Date.now();
       if (now - lastUnknownAtRef.current < UNKNOWN_COOLDOWN_MS) return;
       lastUnknownAtRef.current = now;
-
       const unknownEntry: DetectedStudent = {
         id: `unknown-${now}`,
         rollNo: '—',
@@ -122,13 +217,8 @@ export function FacultyDashboard() {
         timestamp: new Date().toLocaleTimeString(),
         status: 'unknown',
       };
-      // Replace the previous unknown entry (if any) rather than stacking
-      setDetectedStudents((prev) => {
-        const withoutOldUnknown = prev.filter((s) => s.status !== 'unknown');
-        return [unknownEntry, ...withoutOldUnknown.slice(0, 49)];
-      });
+      setDetectedStudents((prev) => [unknownEntry, ...prev.filter((s) => s.status !== 'unknown').slice(0, 49)]);
     }
-
     setTimeout(() => setCurrentDetection(null), 1500);
   };
 
@@ -138,360 +228,745 @@ export function FacultyDashboard() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleStartSession = () => {
-    setIsScanning(true);
-    setSessionTime(0);
-    setDetectedStudents([]);
-  };
+  const handleStartSession = () => { setIsScanning(true); setSessionTime(0); setDetectedStudents([]); };
+  const handleStopSession = () => { setIsScanning(false); setCurrentDetection(null); };
 
-  const handleStopSession = () => {
-    setIsScanning(false);
-    setCurrentDetection(null);
+  const handleDeleteClick = (student: StudentData) => { setDeletingStudent(student); setShowDeleteConfirm(true); };
+  const confirmDelete = async () => {
+    if (!deletingStudent) return;
+    setDeleteLoading(true);
+    try {
+      const result = await deleteStudent(Number(deletingStudent.id));
+      if (result.status === 'success') {
+        setAllStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
+        setShowDeleteConfirm(false);
+        setDeletingStudent(null);
+      } else { alert('Failed to delete student: ' + result.message); }
+    } catch { alert('Delete request failed.'); } finally { setDeleteLoading(false); }
   };
 
   const totalExpected = allStudents.length;
-  const matchedCount = detectedStudents.filter(s => s.status === 'matched').length;
-  const unknownCount = detectedStudents.filter(s => s.status === 'unknown').length;
+  const matchedCount = detectedStudents.filter((s) => s.status === 'matched').length;
+  const unknownCount = detectedStudents.filter((s) => s.status === 'unknown').length;
   const pendingCount = Math.max(0, totalExpected - matchedCount);
   const attendancePercentage = totalExpected > 0 ? (matchedCount / totalExpected) * 100 : 0;
 
+  const getYearFromRollNo = (rollNo: string): string => {
+    const prefix = parseInt(rollNo?.substring(0, 2) || '0', 10);
+    if (!prefix) return 'Unknown';
+    const joiningYear = 2000 + prefix;
+    const currentAcademicYear =
+      new Date().getMonth() >= 5 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+    const yearOfStudy = currentAcademicYear - joiningYear + 1;
+    if (yearOfStudy === 1) return '1st Year';
+    if (yearOfStudy === 2) return '2nd Year';
+    if (yearOfStudy === 3) return '3rd Year';
+    if (yearOfStudy === 4) return '4th Year';
+    return 'Alumni';
+  };
+
+  const YEAR_FILTERS = ['all', '1st Year', '2nd Year', '3rd Year', '4th Year'];
+  const filteredStudents = allStudents.filter((s) => {
+    const matchesYear = selectedYear === 'all' || getYearFromRollNo(s.rollNo) === selectedYear;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      s.name.toLowerCase().includes(q) ||
+      s.rollNo.toLowerCase().includes(q) ||
+      (s.section || '').toLowerCase().includes(q);
+    return matchesYear && matchesSearch;
+  });
+
+  const TAB_STYLE = (active: boolean) => ({
+    padding: '10px 20px',
+    fontSize: '0.875rem',
+    fontWeight: active ? 600 : 500,
+    color: active ? '#1E3A8A' : '#64748B',
+    borderBottom: active ? '2px solid #1E3A8A' : '2px solid transparent',
+    background: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+  });
+
+  const systemStatuses = [
+    { label: 'Camera Status', value: isScanning ? 'Active' : 'Standby', active: isScanning, isCamera: true, Icon: Camera },
+    { label: 'AI Model', value: 'Loaded', active: true, Icon: Cpu },
+    { label: 'Network', value: 'Connected', active: true, Icon: Wifi },
+    { label: 'Geo-Fence', value: 'Verified', active: true, Icon: Shield },
+    { label: 'Database Sync', value: 'Synced', active: true, Icon: Database },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Session Control Header */}
-      <Card className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: '#EEF2FF' }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: isScanning ? '#10B981' : '#1E3A8A' }}
+    <div className="space-y-5">
+      {/* ── Department Banner ── */}
+      <div
+        className="flex items-center gap-3 px-5 py-3 rounded-xl"
+        style={{
+          background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
+          border: '1px solid #C7D2FE',
+        }}
+      >
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: '#1E3A8A' }}
+        >
+          <GraduationCap className="w-3.5 h-3.5 text-white" />
+        </div>
+        <span className="text-sm font-medium" style={{ color: '#1E3A8A' }}>
+          Department:{' '}
+          <strong>
+            {departmentName}
+            {facultyDepartmentId ? '' : ' (Loading…)'}
+          </strong>{' '}
+          — You can only view and manage students from your department.
+        </span>
+      </div>
+
+      {/* ── Tab Navigation + CTA ── */}
+      <div
+        className="flex items-center justify-between"
+        style={{ borderBottom: '1px solid #E2E8F0' }}
+      >
+        <div className="flex">
+          <button style={TAB_STYLE(activeTab === 'attendance')} onClick={() => setActiveTab('attendance')}>
+            <ScanFace className="w-4 h-4" />
+            Attendance Session
+          </button>
+          <button style={TAB_STYLE(activeTab === 'students')} onClick={() => setActiveTab('students')}>
+            <Users className="w-4 h-4" />
+            My Students
+            <span
+              className="ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: '#EEF2FF', color: '#1E3A8A' }}
             >
-              {isScanning ? (
-                <Camera className="w-8 h-8 text-white animate-pulse" />
-              ) : (
-                <ScanFace className="w-8 h-8 text-white" />
-              )}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold" style={{ color: '#1E3A8A' }}>
-                {isScanning ? 'Live Face Recognition Active' : 'Start Attendance Session'}
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Data Structures - Year 3 - Computer Science
-              </p>
-              {isScanning && (
-                <div className="flex items-center gap-4 mt-2">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm font-medium">{formatTime(sessionTime)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Wifi className="w-4 h-4" style={{ color: '#10B981' }} />
-                    <span className="text-sm font-medium text-gray-600">Connected</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="text-right">
-            {!isScanning ? (
+              {allStudents.length}
+            </span>
+          </button>
+          <button style={TAB_STYLE(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>
+            <FileText className="w-4 h-4" />
+            Logs
+          </button>
+        </div>
+
+        <div className="pb-2">
+          {activeTab === 'attendance' && (
+            !isScanning ? (
               <Button
                 onClick={handleStartSession}
-                className="flex items-center gap-2 text-white px-6 py-3 text-base"
-                style={{ backgroundColor: '#10B981' }}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 4px 12px rgba(5,150,105,0.3)' }}
               >
-                <Play className="w-5 h-5" />
+                <Play className="w-4 h-4" />
                 Start Recognition
               </Button>
             ) : (
               <Button
                 onClick={handleStopSession}
-                className="flex items-center gap-2 text-white px-6 py-3 text-base"
-                style={{ backgroundColor: '#EF4444' }}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', boxShadow: '0 4px 12px rgba(220,38,38,0.3)' }}
               >
-                <Square className="w-5 h-5" />
+                <Square className="w-4 h-4" />
                 End Session
               </Button>
-            )}
-          </div>
-        </div>
-
-        {isScanning && (
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Session Progress</span>
-              <span className="text-sm font-bold" style={{ color: '#1E3A8A' }}>
-                {matchedCount}/{totalExpected} ({attendancePercentage.toFixed(0)}%)
-              </span>
-            </div>
-            <Progress value={attendancePercentage} className="h-2" />
-          </div>
-        )}
-      </Card>
-
-      {/* Live Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Expected */}
-        <Card className="p-5 rounded-xl shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EEF2FF' }}>
-              <Users className="w-5 h-5" style={{ color: '#1E3A8A' }} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Expected</p>
-              <h3 className="text-2xl font-bold" style={{ color: '#1E3A8A' }}>{totalExpected}</h3>
-            </div>
-          </div>
-        </Card>
-
-        {/* Present (matched) */}
-        <Card className="p-5 rounded-xl shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ECFDF5' }}>
-              <CheckCircle2 className="w-5 h-5" style={{ color: '#10B981' }} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Present</p>
-              <h3 className="text-2xl font-bold" style={{ color: '#10B981' }}>{matchedCount}</h3>
-            </div>
-          </div>
-        </Card>
-
-        {/* Pending (not yet marked) */}
-        <Card className="p-5 rounded-xl shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#FEF2F2' }}>
-              <XCircle className="w-5 h-5" style={{ color: '#EF4444' }} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Pending</p>
-              <h3 className="text-2xl font-bold" style={{ color: '#EF4444' }}>{pendingCount}</h3>
-            </div>
-          </div>
-        </Card>
-
-        {/* Unregistered */}
-        <Card className="p-5 rounded-xl shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#FFF7ED' }}>
-              <AlertCircle className="w-5 h-5" style={{ color: '#F97316' }} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Unregistered</p>
-              <h3 className="text-2xl font-bold" style={{ color: '#F97316' }}>{unknownCount}</h3>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Camera Feed and Detection */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Camera Feed Simulation */}
-        <Card className="lg:col-span-2 rounded-xl shadow-sm overflow-hidden">
-          <div
-            className="p-4 border-b border-gray-200 flex items-center justify-between"
-            style={{ backgroundColor: '#F9FAFB' }}
-          >
-            <div className="flex items-center gap-2">
-              <Camera className="w-5 h-5" style={{ color: '#1E3A8A' }} />
-              <h3 className="font-bold" style={{ color: '#1E3A8A' }}>
-                Live Camera Feed
-              </h3>
-            </div>
-            {isScanning && (
-              <Badge
-                className="rounded-full flex items-center gap-1.5"
-                style={{ backgroundColor: '#ECFDF5', color: '#10B981' }}
-              >
-                <div
-                  className="w-2 h-2 rounded-full animate-pulse"
-                  style={{ backgroundColor: '#10B981' }}
-                ></div>
-                Recording
-              </Badge>
-            )}
-          </div>
-
-          {/* Camera area — let AttendanceCamera fill the card body */}
-          <div className="relative" style={{ minHeight: 420 }}>
-            {!isScanning ? (
-              <div
-                className="flex flex-col items-center justify-center gap-3 text-gray-400"
-                style={{ minHeight: 420, backgroundColor: '#1F2937' }}
-              >
-                <Camera className="w-16 h-16 opacity-40" />
-                <p className="text-lg">Camera Standby</p>
-                <p className="text-sm opacity-70">Click "Start Recognition" to begin</p>
-              </div>
-            ) : (
-              /* AttendanceCamera handles the video, bounding box, and overlays internally */
-              <div className="w-full" style={{ minHeight: 420 }}>
-                <AttendanceCamera onDetection={handleCameraDetection} />
-              </div>
-            )}
-          </div>
-
-          {/* Camera Controls */}
-          {isScanning && (
-            <div className="p-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <CheckCircle2 className="w-4 h-4" style={{ color: '#10B981' }} />
-                  <span>Face Detection Model: v2.1.0</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <AlertCircle className="w-4 h-4" style={{ color: '#F59E0B' }} />
-                  <span>Confidence Threshold: 95%</span>
-                </div>
-              </div>
-            </div>
+            )
           )}
-        </Card>
-
-        {/* System Status */}
-        <Card className="rounded-xl shadow-sm">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="font-bold" style={{ color: '#1E3A8A' }}>
-              System Status
-            </h3>
-          </div>
-          <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="text-sm text-gray-700">Camera Status</span>
-              <Badge
-                className="rounded-full"
-                style={
-                  isScanning
-                    ? { backgroundColor: '#ECFDF5', color: '#10B981' }
-                    : { backgroundColor: '#F3F4F6', color: '#6B7280' }
-                }
-              >
-                {isScanning ? 'Active' : 'Standby'}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="text-sm text-gray-700">AI Model</span>
-              <Badge
-                className="rounded-full"
-                style={{ backgroundColor: '#ECFDF5', color: '#10B981' }}
-              >
-                Loaded
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="text-sm text-gray-700">Network</span>
-              <Badge
-                className="rounded-full"
-                style={{ backgroundColor: '#ECFDF5', color: '#10B981' }}
-              >
-                Connected
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="text-sm text-gray-700">Geo-Fence</span>
-              <Badge
-                className="rounded-full"
-                style={{ backgroundColor: '#ECFDF5', color: '#10B981' }}
-              >
-                Verified
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="text-sm text-gray-700">Database Sync</span>
-              <Badge
-                className="rounded-full"
-                style={{ backgroundColor: '#ECFDF5', color: '#10B981' }}
-              >
-                Synced
-              </Badge>
-            </div>
-          </div>
-        </Card>
+        </div>
       </div>
 
-      {/* Live Recognition Feed */}
-      <Card className="rounded-xl shadow-sm">
-        <div
-          className="p-4 border-b border-gray-200 flex items-center justify-between"
-          style={{ backgroundColor: '#F9FAFB' }}
-        >
-          <div>
-            <h3 className="font-bold" style={{ color: '#1E3A8A' }}>
-              Live Recognition Feed
-            </h3>
-            <p className="text-sm text-gray-600 mt-0.5">
-              Real-time attendance marking as students are detected
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-            style={{ borderColor: '#1E3A8A', color: '#1E3A8A' }}
+      {/* ── ATTENDANCE TAB ── */}
+      {activeTab === 'attendance' && (
+        <>
+          {/* Session Header Card */}
+          <Card
+            className="rounded-2xl overflow-hidden"
+            style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
           >
-            Export List
-          </Button>
-        </div>
+            <div
+              className="px-6 py-5 flex items-center justify-between"
+              style={{ background: 'linear-gradient(135deg, #F8FAFF 0%, #EEF2FF 100%)', borderBottom: '1px solid #E8EDFF' }}
+            >
+              {/* Left: Icon + title */}
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-md"
+                  style={{
+                    background: isScanning
+                      ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+                      : 'linear-gradient(135deg, #1E3A8A 0%, #1e40af 100%)',
+                  }}
+                >
+                  {isScanning ? (
+                    <Camera className="w-7 h-7 text-white animate-pulse" />
+                  ) : (
+                    <ScanFace className="w-7 h-7 text-white" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-base font-bold" style={{ color: '#0F172A' }}>
+                    {isScanning ? 'Live Face Recognition Active' : 'Start Attendance Session'}
+                  </h2>
+                  <p className="text-sm mt-0.5" style={{ color: '#64748B' }}>
+                    {departmentName}
+                  </p>
+                  {isScanning && (
+                    <div className="flex items-center gap-4 mt-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" style={{ color: '#64748B' }} />
+                        <span className="text-xs font-semibold" style={{ color: '#374151' }}>
+                          {formatTime(sessionTime)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#10B981' }} />
+                        <span className="text-xs font-medium" style={{ color: '#059669' }}>
+                          Live
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-        <div className="p-4">
-          {detectedStudents.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">No students detected yet</p>
-              <p className="text-xs mt-1">
-                {isScanning ? 'Scanning for faces...' : 'Start a session to begin'}
+              {/* Right: Stat chips */}
+              <div className="flex items-center gap-3">
+                <StatChip label="Expected" value={totalExpected} color="#1E3A8A" />
+                <StatChip label="Present" value={matchedCount} color="#059669" />
+                <StatChip label="Unregistered" value={unknownCount} color="#DC2626" />
+              </div>
+            </div>
+
+            {isScanning && (
+              <div className="px-6 py-3" style={{ backgroundColor: '#FAFBFF' }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-medium" style={{ color: '#64748B' }}>
+                    Session Progress
+                  </span>
+                  <span className="text-xs font-bold" style={{ color: '#1E3A8A' }}>
+                    {matchedCount}/{totalExpected} ({attendancePercentage.toFixed(0)}%)
+                  </span>
+                </div>
+                <Progress value={attendancePercentage} className="h-1.5" style={{ backgroundColor: '#E0E7FF' }} />
+              </div>
+            )}
+          </Card>
+
+          {/* Camera + System Status */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Camera Feed */}
+            <Card
+              className="lg:col-span-2 rounded-2xl overflow-hidden"
+              style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+            >
+              <div
+                className="px-5 py-3.5 flex items-center justify-between"
+                style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: '#EEF2FF' }}
+                  >
+                    <Camera className="w-3.5 h-3.5" style={{ color: '#1E3A8A' }} />
+                  </div>
+                  <span className="font-semibold text-sm" style={{ color: '#0F172A' }}>
+                    Live Camera Feed
+                  </span>
+                </div>
+                {isScanning && (
+                  <span
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full"
+                    style={{ backgroundColor: '#ECFDF5', color: '#059669' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    Recording
+                  </span>
+                )}
+                {!isScanning && (
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: '#F1F5F9', color: '#94A3B8' }}
+                  >
+                    Standby
+                  </span>
+                )}
+              </div>
+
+              <div className="relative" style={{ minHeight: 380 }}>
+                {!isScanning ? (
+                  <div
+                    className="flex flex-col items-center justify-center gap-3"
+                    style={{ minHeight: 380, background: 'linear-gradient(160deg, #0F172A 0%, #1E293B 100%)' }}
+                  >
+                    <div
+                      className="w-16 h-16 rounded-full flex items-center justify-center mb-1"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                    >
+                      <Camera className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    </div>
+                    <p className="text-base font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      Camera Standby
+                    </p>
+                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      Click "Start Recognition" to begin
+                    </p>
+                  </div>
+                ) : (
+                  <div className="w-full" style={{ minHeight: 380 }}>
+                    <AttendanceCamera onDetection={handleCameraDetection} />
+                  </div>
+                )}
+              </div>
+
+              {isScanning && (
+                <div
+                  className="px-5 py-3 flex items-center justify-between"
+                  style={{ borderTop: '1px solid #E2E8F0', backgroundColor: '#FAFBFF' }}
+                >
+                  <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748B' }}>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                    Face Detection Model v2.1.0
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748B' }}>
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                    Confidence Threshold: 95%
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {/* System Status */}
+            <Card
+              className="rounded-2xl overflow-hidden"
+              style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+            >
+              <div
+                className="px-5 py-3.5"
+                style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}
+              >
+                <span className="font-semibold text-sm" style={{ color: '#0F172A' }}>
+                  System Status
+                </span>
+              </div>
+              <div className="p-4 space-y-2.5" style={{ backgroundColor: '#FAFBFF' }}>
+                {systemStatuses.map(({ label, value, active, isCamera }) => (
+                  <StatusRow key={label} label={label} value={value} active={active} isCamera={isCamera} />
+                ))}
+              </div>
+              <div className="px-4 pb-4" style={{ backgroundColor: '#FAFBFF' }}>
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl"
+                  style={{
+                    borderColor: '#C7D2FE',
+                    color: '#1E3A8A',
+                    backgroundColor: '#EEF2FF',
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                  Export List
+                </Button>
+              </div>
+            </Card>
+          </div>
+
+          {/* Live Recognition Feed */}
+          <Card
+            className="rounded-2xl overflow-hidden"
+            style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+          >
+            <div
+              className="px-5 py-3.5 flex items-center justify-between"
+              style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}
+            >
+              <div>
+                <p className="font-semibold text-sm" style={{ color: '#0F172A' }}>
+                  Live Recognition Feed
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+                  Real-time attendance marking as students are detected
+                </p>
+              </div>
+            </div>
+
+            <div className="p-5" style={{ backgroundColor: '#FAFBFF' }}>
+              {detectedStudents.length === 0 ? (
+                <div className="text-center py-10">
+                  <div
+                    className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+                    style={{ backgroundColor: '#EEF2FF' }}
+                  >
+                    <Users className="w-7 h-7" style={{ color: '#A5B4FC' }} />
+                  </div>
+                  <p className="text-sm font-medium" style={{ color: '#94A3B8' }}>
+                    No students detected yet
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: '#CBD5E1' }}>
+                    {isScanning ? 'Scanning for faces…' : 'Start a session to begin'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {detectedStudents.map((student) => {
+                    const isMatch = student.status === 'matched';
+                    return (
+                      <div
+                        key={student.id}
+                        className="flex items-center justify-between px-4 py-3 rounded-xl transition-all"
+                        style={{
+                          backgroundColor: isMatch ? '#F0FDF4' : '#FFF7ED',
+                          border: `1px solid ${isMatch ? '#BBF7D0' : '#FED7AA'}`,
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                            style={{ backgroundColor: isMatch ? '#059669' : '#F97316' }}
+                          >
+                            {isMatch ? student.name.charAt(0).toUpperCase() : '?'}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold" style={{ color: '#0F172A' }}>
+                              {student.name}
+                            </p>
+                            <p className="text-xs" style={{ color: '#94A3B8' }}>
+                              {isMatch ? `Roll: ${student.rollNo}` : 'Not in system'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span
+                            className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                            style={{
+                              backgroundColor: isMatch ? '#DCFCE7' : '#FEF3C7',
+                              color: isMatch ? '#059669' : '#D97706',
+                            }}
+                          >
+                            {isMatch ? '✓ Present' : '⚠ Unregistered'}
+                          </span>
+                          <p className="text-xs mt-1" style={{ color: '#CBD5E1' }}>
+                            {student.timestamp}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* ── STUDENTS TAB ── */}
+      {activeTab === 'students' && (
+        <Card
+          className="rounded-2xl overflow-hidden"
+          style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+        >
+          <div
+            className="px-6 py-4"
+            style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-sm" style={{ color: '#0F172A' }}>
+                  Student Records
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+                  {isLoadingStudents
+                    ? 'Loading…'
+                    : `${filteredStudents.length} of ${allStudents.length} students · ${departmentName}`}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadStudents}
+                disabled={isLoadingStudents}
+                className="flex items-center gap-1.5 text-xs font-semibold rounded-xl"
+                style={{ borderColor: '#C7D2FE', color: '#1E3A8A', backgroundColor: '#EEF2FF' }}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </Button>
+            </div>
+
+            <div className="relative mb-3">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
+                style={{ color: '#94A3B8' }}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search by name, roll no or section…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm rounded-xl outline-none"
+                style={{
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#F8FAFF',
+                  color: '#0F172A',
+                }}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {YEAR_FILTERS.map((yr) => (
+                <button
+                  key={yr}
+                  onClick={() => setSelectedYear(yr)}
+                  className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
+                  style={
+                    selectedYear === yr
+                      ? { backgroundColor: '#1E3A8A', color: '#FFFFFF' }
+                      : { backgroundColor: '#EEF2FF', color: '#64748B' }
+                  }
+                >
+                  {yr === 'all' ? 'All Years' : yr}
+                  {yr !== 'all' && (
+                    <span
+                      className="ml-1.5 px-1 py-0.5 rounded-full text-[10px] font-bold"
+                      style={{
+                        backgroundColor: selectedYear === yr ? 'rgba(255,255,255,0.2)' : '#E0E7FF',
+                        color: selectedYear === yr ? '#FFFFFF' : '#1E3A8A',
+                      }}
+                    >
+                      {allStudents.filter((s) => getYearFromRollNo(s.rollNo) === yr).length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {isLoadingStudents ? (
+            <div className="p-8 text-center">
+              <div className="animate-pulse flex flex-col items-center gap-3">
+                <div className="w-12 h-12 bg-indigo-100 rounded-full" />
+                <div className="h-3 bg-indigo-100 rounded w-40" />
+              </div>
+            </div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="p-12 text-center">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{ backgroundColor: '#EEF2FF' }}
+              >
+                <Users className="w-8 h-8" style={{ color: '#A5B4FC' }} />
+              </div>
+              <p className="text-sm font-semibold" style={{ color: '#64748B' }}>
+                {allStudents.length === 0
+                  ? 'No students found in your department.'
+                  : 'No students match the current filters.'}
               </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-              {detectedStudents.map((student) => {
-                const isMatch = student.status === 'matched';
-                return (
-                  <div
-                    key={student.id}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-all animate-in slide-in-from-top duration-300 ${isMatch
-                      ? 'bg-emerald-50 border-emerald-200'
-                      : 'bg-orange-50 border-orange-200'
-                      }`}
-                  >
-                    <div className="flex items-center gap-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFF', borderBottom: '1px solid #E2E8F0' }}>
+                    {['Roll No', 'Name', 'Year', 'Section', 'Phone', ''].map((h) => (
+                      <th
+                        key={h}
+                        className="px-5 py-3 text-left text-xs font-semibold"
+                        style={{ color: '#64748B' }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map((student) => {
+                    const yearLabel = getYearFromRollNo(student.rollNo);
+                    const yearColors: Record<string, { bg: string; text: string }> = {
+                      '1st Year': { bg: '#F3E8FF', text: '#7C3AED' },
+                      '2nd Year': { bg: '#EEF2FF', text: '#4338CA' },
+                      '3rd Year': { bg: '#ECFDF5', text: '#059669' },
+                      '4th Year': { bg: '#FEF3C7', text: '#D97706' },
+                      Alumni: { bg: '#F1F5F9', text: '#64748B' },
+                      Unknown: { bg: '#F1F5F9', text: '#94A3B8' },
+                    };
+                    const yc = yearColors[yearLabel] || yearColors.Unknown;
+                    return (
+                      <tr
+                        key={student.id}
+                        className="transition-colors"
+                        style={{ borderBottom: '1px solid #F1F5F9' }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#F8FAFF')}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'transparent')}
+                      >
+                        <td className="px-5 py-3 font-bold text-xs" style={{ color: '#1E3A8A' }}>
+                          {student.rollNo}
+                        </td>
+                        <td className="px-5 py-3 font-medium" style={{ color: '#0F172A' }}>
+                          {student.name}
+                        </td>
+                        <td className="px-5 py-3">
+                          <span
+                            className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ backgroundColor: yc.bg, color: yc.text }}
+                          >
+                            {yearLabel}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-xs" style={{ color: '#64748B' }}>
+                          {student.section || '—'}
+                        </td>
+                        <td className="px-5 py-3 text-xs" style={{ color: '#64748B' }}>
+                          {student.phone || '—'}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <button
+                            onClick={() => handleDeleteClick(student)}
+                            className="p-1.5 rounded-lg transition-colors"
+                            title="Delete student"
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLElement).style.backgroundColor = '#FEF2F2';
+                              (e.currentTarget as HTMLElement).style.color = '#EF4444';
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                              (e.currentTarget as HTMLElement).style.color = '#94A3B8';
+                            }}
+                            style={{ color: '#94A3B8' }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ── LOGS TAB ── */}
+      {activeTab === 'logs' && (
+        <Card
+          className="rounded-2xl overflow-hidden"
+          style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+        >
+          <div
+            className="px-5 py-4"
+            style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}
+          >
+            <p className="font-semibold text-sm" style={{ color: '#0F172A' }}>
+              Session Logs
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+              History of recognized and unregistered faces from this session
+            </p>
+          </div>
+
+          <div className="p-5" style={{ backgroundColor: '#FAFBFF' }}>
+            {detectedStudents.length === 0 ? (
+              <div className="text-center py-10">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+                  style={{ backgroundColor: '#EEF2FF' }}
+                >
+                  <FileText className="w-7 h-7" style={{ color: '#A5B4FC' }} />
+                </div>
+                <p className="text-sm font-medium" style={{ color: '#94A3B8' }}>
+                  No session logs yet
+                </p>
+                <p className="text-xs mt-1" style={{ color: '#CBD5E1' }}>
+                  Start a recognition session to see logs here
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                {detectedStudents.map((student, idx) => {
+                  const isMatch = student.status === 'matched';
+                  return (
+                    <div
+                      key={student.id}
+                      className="flex items-center gap-4 px-4 py-3 rounded-xl"
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                      }}
+                    >
+                      <span className="text-xs font-bold w-5 text-right flex-shrink-0" style={{ color: '#CBD5E1' }}>
+                        {idx + 1}
+                      </span>
                       <div
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm"
-                        style={{ backgroundColor: isMatch ? '#10B981' : '#F97316' }}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                        style={{ backgroundColor: isMatch ? '#059669' : '#F97316' }}
                       >
                         {isMatch ? student.name.charAt(0).toUpperCase() : '?'}
                       </div>
-                      <div>
-                        <p className={`font-semibold text-sm ${isMatch ? 'text-gray-900' : 'text-orange-800'}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: '#0F172A' }}>
                           {student.name}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {isMatch ? `Roll: ${student.rollNo}` : 'Not in system'}
+                        <p className="text-xs" style={{ color: '#94A3B8' }}>
+                          {isMatch ? `Roll: ${student.rollNo}` : 'Unregistered'}
                         </p>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge
-                        className="rounded-full mb-1 text-xs px-2 py-0.5"
-                        style={isMatch
-                          ? { backgroundColor: '#ECFDF5', color: '#059669' }
-                          : { backgroundColor: '#FFF7ED', color: '#EA580C' }
-                        }
+                      <span
+                        className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+                        style={{
+                          backgroundColor: isMatch ? '#DCFCE7' : '#FEF3C7',
+                          color: isMatch ? '#059669' : '#D97706',
+                        }}
                       >
-                        {isMatch ? (
-                          <><CheckCircle2 className="w-3 h-3 mr-1" />Present</>
-                        ) : (
-                          <><XCircle className="w-3 h-3 mr-1" />Unregistered</>
-                        )}
-                      </Badge>
-                      <p className="text-xs text-gray-400">{student.timestamp}</p>
+                        {isMatch ? 'Present' : 'Unknown'}
+                      </span>
+                      <span className="text-xs flex-shrink-0" style={{ color: '#CBD5E1' }}>
+                        {student.timestamp}
+                      </span>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Delete Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <Trash2 className="w-5 h-5" /> Delete Student
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{deletingStudent?.name}</strong> ({deletingStudent?.rollNo})?
+              This will also remove all their attendance records. This action <strong>cannot be undone</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleteLoading}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleteLoading ? 'Deleting…' : 'Yes, Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

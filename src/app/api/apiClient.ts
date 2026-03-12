@@ -41,6 +41,7 @@ export interface RegisterPayload {
   rollNumber: string;
   name: string;
   phoneNumber: string;
+  year: string;
   departmentId: number;
   sectionId: number;
   imageFile: File;
@@ -202,6 +203,7 @@ export async function registerStudent(payload: RegisterPayload): Promise<Registe
   formData.append('roll_number', payload.rollNumber);
   formData.append('name', payload.name);
   formData.append('phone_number', payload.phoneNumber);
+  formData.append('year', payload.year);
   formData.append('department_id', payload.departmentId.toString());
   formData.append('section_id', payload.sectionId.toString());
   formData.append('file', payload.imageFile);

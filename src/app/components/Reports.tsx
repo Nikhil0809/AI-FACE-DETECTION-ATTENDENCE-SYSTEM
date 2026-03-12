@@ -225,7 +225,7 @@ export function Reports() {
 
   if (loading) {
     return (
-      <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl">
+      <Card className="p-6 rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', backgroundColor: '#FFFFFF' }}>
         <div className="animate-pulse space-y-4">
           <div className="h-10 bg-muted rounded w-1/3"></div>
           <div className="h-8 bg-muted rounded w-full"></div>
@@ -243,7 +243,7 @@ export function Reports() {
     >
       {/* Filter Section */}
       <motion.div variants={itemVariants}>
-        <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl">
+        <Card className="p-6 rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', backgroundColor: '#FFFFFF' }}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="start-date">Start Date</Label>
@@ -293,7 +293,7 @@ export function Reports() {
 
       {/* Export Options */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer border-border/50 bg-card/60 backdrop-blur-xl group">
+        <Card className="p-6 rounded-2xl overflow-hidden cursor-pointer" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', backgroundColor: '#FFFFFF' }}>
           <div className="flex items-center gap-4">
             <div
               className="w-14 h-14 rounded-lg flex items-center justify-center bg-primary/10 group-hover:bg-primary/20 transition-colors"
@@ -318,7 +318,7 @@ export function Reports() {
           </div>
         </Card>
 
-        <Card className="p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer border-border/50 bg-card/60 backdrop-blur-xl group">
+        <Card className="p-6 rounded-2xl overflow-hidden cursor-pointer" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', backgroundColor: '#FFFFFF' }}>
           <div className="flex items-center gap-4">
             <div
               className="w-14 h-14 rounded-lg flex items-center justify-center bg-accent/10 group-hover:bg-accent/20 transition-colors"
@@ -346,7 +346,7 @@ export function Reports() {
 
       {/* Attendance Heatmap Calendar */}
       <motion.div variants={itemVariants}>
-        <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl">
+        <Card className="p-6 rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', backgroundColor: '#FFFFFF' }}>
           <h3 className="text-lg font-bold mb-4 text-foreground tracking-tight">
             Daily Attendance Heatmap (Current Month)
           </h3>
@@ -394,19 +394,19 @@ export function Reports() {
 
       {/* Summary Stats */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:-translate-y-1 transition-transform">
+        <Card className="p-6 rounded-2xl overflow-hidden hover:-translate-y-1 transition-transform" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', backgroundColor: '#FFFFFF' }}>
           <p className="text-sm text-muted-foreground">Total Attendance Records</p>
           <h3 className="text-3xl font-bold mt-2 text-primary">
             {filteredRecords.length}
           </h3>
         </Card>
-        <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:-translate-y-1 transition-transform">
+        <Card className="p-6 rounded-2xl overflow-hidden hover:-translate-y-1 transition-transform" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', backgroundColor: '#FFFFFF' }}>
           <p className="text-sm text-muted-foreground">Unique Students</p>
           <h3 className="text-3xl font-bold mt-2 text-accent-foreground">
             {new Set(filteredRecords.map((r) => r.rollNumber)).size}
           </h3>
         </Card>
-        <Card className="p-6 rounded-xl shadow-sm border-border/50 bg-card/60 backdrop-blur-xl hover:-translate-y-1 transition-transform">
+        <Card className="p-6 rounded-2xl overflow-hidden hover:-translate-y-1 transition-transform" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', backgroundColor: '#FFFFFF' }}>
           <p className="text-sm text-muted-foreground">Active Days</p>
           <h3 className="text-3xl font-bold mt-2 text-destructive">
             {dailyAttendance.length}
@@ -416,8 +416,8 @@ export function Reports() {
 
       {/* Detailed Attendance Table */}
       <motion.div variants={itemVariants}>
-        <Card className="rounded-xl shadow-sm overflow-hidden border-border/50 bg-card/60 backdrop-blur-xl">
-          <div className="p-6 border-b border-border/50 bg-secondary/10 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <Card className="rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div className="p-6 flex flex-col sm:flex-row justify-between items-center gap-4" style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid #E2E8F0' }}>
             <div>
               <h3 className="text-lg font-bold text-foreground">Attendance History</h3>
               <p className="text-sm text-muted-foreground mt-1">

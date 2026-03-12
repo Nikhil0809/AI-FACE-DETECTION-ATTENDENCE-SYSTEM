@@ -1,11 +1,7 @@
 import { useState } from 'react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Mail, Lock } from 'lucide-react';
 import { loginUser, LoginPayload } from '../api/apiClient';
 import { motion } from 'framer-motion';
-import collegeLogo from '../../assets/index.jpg';
+import collegeLogo from '../../assets/vignan-logo.jpg';
 import collegeBuilding from '../../assets/vig.jpg';
 
 interface LoginPageProps {
@@ -15,252 +11,401 @@ interface LoginPageProps {
   onAdminRegisterClick?: () => void;
 }
 
-export function LoginPage({ onLogin, onStudentRegisterClick, onFacultyRegisterClick, onAdminRegisterClick }: LoginPageProps) {
-  const [selectedRole, setSelectedRole] = useState<'student' | 'faculty' | 'admin'>('student');
+export function LoginPage({
+  onLogin,
+  onStudentRegisterClick,
+  onFacultyRegisterClick,
+  onAdminRegisterClick,
+}: LoginPageProps) {
+  const [selectedRole, setSelectedRole] = useState<'faculty' | 'admin'>('admin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    // Handle Student role which doesn't have a backend portal yet
-    if (selectedRole === 'student') {
-      setError('Student portal login is currently disabled. Please use Faculty or Admin roles.');
-      return;
-    }
-
-    if (!email || !password) { setError('Please enter both email and password'); return; }
-
+    if (!email || !password) { setError('Please enter both email and password.'); return; }
     setLoading(true);
-    // The API currently expects 'admin' or 'faculty'
-    const roleForApi = selectedRole as 'admin' | 'faculty';
-    const payload: LoginPayload = { email, password, role: roleForApi };
+    const payload: LoginPayload = { email, password, role: selectedRole };
     const result = await loginUser(payload);
-
     if (result.status === 'success' && result.user) {
-      onLogin(roleForApi, result.user);
+      onLogin(selectedRole, result.user);
     } else {
-      setError(result.message || 'Login failed. Please check your credentials.');
+      setError(result.message || 'Invalid credentials. Please try again.');
     }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden font-sans">
-      {/* Background Image: Bright, daytime college building without heavy dark overlays */}
-      <div className="absolute inset-0 z-0 bg-[#e4f0fa]">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      {/* ── College Building Background ── */}
+      <div className="absolute inset-0 z-0">
         <img
           src={collegeBuilding}
           alt="Vignan Campus"
           className="w-full h-full object-cover"
         />
-        {/* Subtle gradient to ensure text readability on the left, but keep building visible */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#002f5b]/80 via-[#002f5b]/20 to-transparent" />
-        {/* Very subtle overall lightening blur for that airy atmosphere */}
-        <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px]" />
+        {/* Deep blue overlay — keeps campus visible, ensures card contrast */}
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(135deg, rgba(10,25,60,0.72) 0%, rgba(20,40,100,0.55) 50%, rgba(10,25,60,0.65) 100%)' }}
+        />
+        {/* Subtle frosted-glass vignette at edges */}
+        <div
+          className="absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(5,10,30,0.35) 100%)' }}
+        />
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col lg:flex-row w-full max-w-[1600px] mx-auto">
-
-        {/* Left Section: Typography */}
-        <div className="flex-1 flex px-8 lg:px-24 justify-center flex-col pt-12 lg:pt-0 pb-8">
+      {/* ── Two-Column Layout: Branding Left | Card Center-Left ── */}
+      <div className="relative z-10 w-full min-h-screen flex items-center justify-center gap-12 lg:gap-32 px-6 lg:px-12 py-12">
+        {/* Left: Branding */}
+        <div className="hidden lg:flex flex-col justify-center max-w-[540px]">
           <motion.div
-            initial={{ opacity: 0, x: -30 }}
+            initial={{ opacity: 0, x: -32 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-white space-y-2 mt-auto lg:mt-32 max-w-xl hidden md:block"
-            style={{ textShadow: '0px 2px 12px rgba(0,0,0,0.4), 0px 4px 24px rgba(0,40,90,0.6)' }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           >
-            <h1 className="text-6xl lg:text-7xl font-bold tracking-tight m-0 p-0 leading-none">
-              VIGNAN
+
+            <h1
+              className="text-5xl lg:text-6xl font-black leading-tight mb-4"
+              style={{ color: '#FFFFFF', fontFamily: 'Montserrat, sans-serif', letterSpacing: '-0.02em', textShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
+            >
+              Vignan
+              <br />
+              <span style={{ color: '#93C5FD' }}>AI Attendance</span>
+              <br />
+              <span className="text-4xl lg:text-5xl" style={{ color: 'rgba(255,255,255,0.8)' }}>System</span>
             </h1>
-            <h2 className="text-2xl lg:text-[28px] font-semibold tracking-wide m-0 p-0">
-              INSTITUTE OF INFORMATION TECHNOLOGY
-            </h2>
-            <p className="text-xl lg:text-2xl text-white/90 font-medium tracking-wide mt-4">
-              AI Smart Attendance System
+
+            <p className="text-base font-medium mb-1" style={{ color: 'rgba(255,255,255,0.75)' }}>
+              Vignan Institute of Information Technology
             </p>
+            <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.48)' }}>
+              Face-recognition based automated attendance<br />with real-time SMS alerts &amp; analytics dashboard.
+            </p>
+
+
           </motion.div>
         </div>
 
-        {/* Right Section: Dark Card */}
-        <div className="w-full lg:w-[800px] flex items-center justify-center lg:justify-end px-6 lg:px-12 py-12 lg:py-0">
+        {/* Card column */}
+        <div className="w-full lg:w-auto flex-shrink-0">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="w-full max-w-[600px]"
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full"
+            style={{ maxWidth: 420 }}
           >
-            {/* The Dark Container */}
+            {/* ── Card ── */}
             <div
-              className="rounded-2xl overflow-hidden p-10 lg:p-14 relative shadow-2xl"
+              className="rounded-3xl px-8 py-10 flex flex-col justify-center"
               style={{
-                backgroundColor: '#303346',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
+                backgroundColor: '#FFFFFF',
+                boxShadow: '0 8px 40px rgba(30,58,138,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+                border: '1px solid #E8EDFF',
+                minHeight: 600,
               }}
             >
-              {/* Header */}
-              <div className="text-center mb-8 flex flex-col items-center">
+              {/* Logo + Title */}
+              <div className="flex flex-col items-center mb-8">
                 <img
                   src={collegeLogo}
-                  alt="Vignan Logo"
-                  className="h-16 mb-4 object-contain"
+                  alt="Vignan Institute"
+                  className="h-12 object-contain mb-5"
+                  style={{ filter: 'drop-shadow(0 2px 6px rgba(30,58,138,0.15))' }}
                 />
-                <h3 className="text-white text-[26px] font-bold tracking-tight mb-2">
-                  Welcome Back
-                </h3>
-                <p className="text-[#94A3B8] text-[15px]">
-                  Sign in to access your portal
+                <h1
+                  className="text-2xl font-bold tracking-tight"
+                  style={{ color: '#0F172A', fontStyle: 'italic' }}
+                >
+                  Vignan AI Attendance
+                </h1>
+                <p className="text-sm mt-1.5" style={{ color: '#64748B' }}>
+                  Welcome back! Please enter your details.
                 </p>
               </div>
 
-              {/* Tabs */}
-              <div className="flex bg-[#232533] rounded-xl p-1 mb-8">
+              {/* Role Tabs */}
+              <div
+                className="flex rounded-xl p-1 mb-7"
+                style={{ backgroundColor: '#F0F4FF', border: '1px solid #E2E8F0' }}
+              >
                 {(['admin', 'faculty'] as const).map((role) => (
                   <button
                     key={role}
                     type="button"
                     onClick={() => { setSelectedRole(role); setError(''); }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium text-[14px] transition-all duration-200 ${selectedRole === role
-                      ? 'bg-[#4263EB] text-white shadow-md'
-                      : 'text-[#94A3B8] hover:text-white'
-                      }`}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 capitalize"
+                    style={
+                      selectedRole === role
+                        ? {
+                          backgroundColor: '#1E3A8A',
+                          color: '#FFFFFF',
+                          boxShadow: '0 2px 8px rgba(30,58,138,0.25)',
+                        }
+                        : { color: '#64748B', backgroundColor: 'transparent' }
+                    }
                   >
-                    {role === 'admin' ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg>
-                    )}
-                    <span className="capitalize">{role} Portal</span>
+                    {role} Portal
                   </button>
                 ))}
               </div>
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Error Banner */}
+                {/* Error */}
                 {error && (
                   <motion.div
-                    initial={{ opacity: 0, y: -5 }}
+                    initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-3 text-sm text-red-400 bg-red-400/10 rounded-xl font-medium text-center border border-red-400/20"
+                    className="p-3 text-xs font-medium text-center rounded-lg"
+                    style={{ backgroundColor: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}
                   >
                     {error}
                   </motion.div>
                 )}
 
-                {/* Email Input */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-[#E2E8F0] text-[13px] font-medium ml-1">
+                {/* Email */}
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-semibold mb-2"
+                    style={{ color: '#0F172A' }}
+                  >
                     Email Address
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="name@vignan.ac.in"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading}
-                      className="w-full px-4 py-6 text-[15px] bg-[#232533] border-[#3E4259] focus:border-[#4263EB] focus:ring-1 focus:ring-[#4263EB] transition-all rounded-xl placeholder:text-[#64748B] text-white shadow-inner"
-                    />
-                  </div>
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    placeholder="name@vignan.ac.in"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={loading}
+                    autoComplete="email"
+                    className="w-full outline-none transition-all"
+                    style={{
+                      padding: '12px 14px',
+                      fontSize: '0.9rem',
+                      border: '1.5px solid #E2E8F0',
+                      borderRadius: 10,
+                      backgroundColor: '#FFFFFF',
+                      color: '#0F172A',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#1E3A8A';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(30,58,138,0.08)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#E2E8F0';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  />
                 </div>
 
-                {/* Password Input */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center ml-1">
-                    <Label htmlFor="password" className="text-[#E2E8F0] text-[13px] font-medium">
+                {/* Password */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label
+                      htmlFor="password"
+                      className="text-sm font-semibold"
+                      style={{ color: '#0F172A' }}
+                    >
                       Password
-                    </Label>
+                    </label>
+                    <button
+                      type="button"
+                      className="text-sm font-medium"
+                      style={{ color: '#1E3A8A' }}
+                      tabIndex={-1}
+                    >
+                      Forgot password?
+                    </button>
                   </div>
                   <div className="relative">
-                    <Input
+                    <input
                       id="password"
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
-                      className="w-full px-4 py-6 pr-12 text-[15px] tracking-widest bg-[#232533] border-[#3E4259] focus:border-[#4263EB] focus:ring-1 focus:ring-[#4263EB] transition-all rounded-xl placeholder:text-[#64748B] text-white shadow-inner"
+                      autoComplete="current-password"
+                      className="w-full outline-none transition-all pr-11"
+                      style={{
+                        padding: '12px 14px',
+                        fontSize: '0.9rem',
+                        border: '1.5px solid #E2E8F0',
+                        borderRadius: 10,
+                        backgroundColor: '#FFFFFF',
+                        color: '#0F172A',
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#1E3A8A';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(30,58,138,0.08)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#E2E8F0';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
                     />
-                    <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-3.5 flex items-center"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                {/* Login Button */}
-                <Button
+                {/* Remember Me */}
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <div
+                    onClick={() => setRememberMe(!rememberMe)}
+                    className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                    style={{
+                      border: rememberMe ? 'none' : '1.5px solid #CBD5E1',
+                      backgroundColor: rememberMe ? '#1E3A8A' : '#FFFFFF',
+                    }}
+                  >
+                    {rememberMe && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6l3 3 5-5" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-sm" style={{ color: '#475569' }}>
+                    Remember for 30 days
+                  </span>
+                </label>
+
+                {/* Sign In Button */}
+                <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-6 mt-6 text-[16px] font-semibold text-white rounded-xl shadow-lg border-none transition-all hover:bg-[#3451c7] bg-[#4263EB] flex items-center justify-center gap-2"
+                  className="w-full flex items-center justify-center font-semibold text-white rounded-xl transition-all duration-200"
+                  style={{
+                    padding: '13px',
+                    fontSize: '0.95rem',
+                    background: loading
+                      ? '#64748B'
+                      : 'linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%)',
+                    boxShadow: loading ? 'none' : '0 4px 16px rgba(15,23,42,0.35)',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading) (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 24px rgba(15,23,42,0.45)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading) (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 16px rgba(15,23,42,0.35)';
+                  }}
                 >
                   {loading ? (
                     <span className="flex items-center gap-2">
-                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      Signing in...
+                      Signing in…
                     </span>
                   ) : (
-                    <>
-                      Sign In
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                    </>
+                    'Sign In'
                   )}
-                </Button>
+                </button>
               </form>
 
-              {/* Registration Links */}
-              <div className="mt-8 pt-6 relative">
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <div className="w-full border-t border-[#3E4259]"></div>
-                </div>
-                <div className="relative flex justify-center">
-                  <span className="bg-[#303346] px-3 text-[13px] text-[#94A3B8]">
-                    New to the system?
-                  </span>
-                </div>
+              {/* OR Divider */}
+              <div className="relative my-7">
+                <div style={{ borderTop: '1px solid #E2E8F0' }} />
+                <span
+                  className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 px-3 text-xs font-semibold tracking-widest"
+                  style={{ backgroundColor: '#FFFFFF', color: '#94A3B8', top: '50%' }}
+                >
+                  OR CONTINUE WITH
+                </span>
               </div>
 
-              <div className="mt-6 flex flex-col gap-3">
-                {onStudentRegisterClick && (
+              {/* Registration Buttons */}
+              <div className="flex gap-3 mb-7">
+                {onFacultyRegisterClick && (
+                  <button
+                    type="button"
+                    onClick={onFacultyRegisterClick}
+                    className="flex-1 flex items-center justify-center gap-2 font-semibold text-sm rounded-xl transition-all"
+                    style={{
+                      padding: '11px',
+                      border: '1.5px solid #E2E8F0',
+                      color: '#0F172A',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#F8FAFF')}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#FFFFFF')}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" />
+                    </svg>
+                    Setup Faculty
+                  </button>
+                )}
+                {onAdminRegisterClick && (
+                  <button
+                    type="button"
+                    onClick={onAdminRegisterClick}
+                    className="flex-1 flex items-center justify-center gap-2 font-semibold text-sm rounded-xl transition-all"
+                    style={{
+                      padding: '11px',
+                      border: '1.5px solid #E2E8F0',
+                      color: '#0F172A',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#F8FAFF')}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#FFFFFF')}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    Admin Setup
+                  </button>
+                )}
+              </div>
+
+              {/* Student Registration link */}
+              {onStudentRegisterClick && (
+                <p className="text-center text-sm" style={{ color: '#64748B' }}>
+                  Need to register?{' '}
                   <button
                     type="button"
                     onClick={onStudentRegisterClick}
-                    className="w-full text-[13px] font-medium text-[#E2E8F0] hover:text-white hover:bg-[#3E4259] py-3 rounded-xl transition-colors border border-[#3E4259] bg-[#232533]"
+                    className="font-semibold transition-colors"
+                    style={{ color: '#1E3A8A' }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#0F172A')}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#1E3A8A')}
                   >
-                    Student Registration (Face Scan)
+                    Student Face Registration
                   </button>
-                )}
-                <div className="flex gap-3">
-                  {onFacultyRegisterClick && (
-                    <button
-                      type="button"
-                      onClick={onFacultyRegisterClick}
-                      className="flex-1 text-[13px] font-medium text-[#E2E8F0] hover:text-white hover:bg-[#3E4259] py-3 rounded-xl transition-colors border border-[#3E4259] bg-[#232533]"
-                    >
-                      Setup Faculty
-                    </button>
-                  )}
-                  {onAdminRegisterClick && (
-                    <button
-                      type="button"
-                      onClick={onAdminRegisterClick}
-                      className="flex-1 text-[13px] font-medium text-[#E2E8F0] hover:text-white hover:bg-[#3E4259] py-3 rounded-xl transition-colors border border-[#3E4259] bg-[#232533]"
-                    >
-                      Admin Setup
-                    </button>
-                  )}
-                </div>
-              </div>
-
+                </p>
+              )}
             </div>
+
+            {/* Footer note */}
+            <p className="text-center text-xs mt-5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              Vignan Institute of Information Technology · AI Smart Attendance
+            </p>
           </motion.div>
         </div>
       </div>
