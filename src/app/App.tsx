@@ -11,6 +11,8 @@ import { AttendanceMonitoring } from './components/AttendanceMonitoring';
 import { Reports } from './components/Reports';
 import { SmsLogs } from './components/SmsLogs';
 import { AdminSettings } from './components/AdminSettings';
+import { FacultyManagement } from './components/FacultyManagement';
+import { CsvUpload } from './components/CsvUpload';
 
 type PageState = 'login' | 'register-student' | 'register-faculty' | 'register-admin' | 'dashboard';
 
@@ -108,19 +110,9 @@ export default function App() {
       case 'sms-logs':
         return <SmsLogs />;
       case 'csv-upload':
-        return (
-          <div className="text-center py-20">
-            <h2 className="text-2xl font-bold text-gray-900">CSV Upload</h2>
-            <p className="text-gray-600 mt-2">CSV upload functionality coming soon...</p>
-          </div>
-        );
+        return <CsvUpload />;
       case 'faculty':
-        return (
-          <div className="text-center py-20">
-            <h2 className="text-2xl font-bold text-gray-900">Faculty Management</h2>
-            <p className="text-gray-600 mt-2">Faculty management functionality coming soon...</p>
-          </div>
-        );
+        return <FacultyManagement />;
       case 'admin-settings':
         return <AdminSettings />;
       case 'settings':

@@ -21,6 +21,10 @@ import {
   Cpu,
   RefreshCw,
   FileText,
+  Sun,
+  Moon,
+  Bell,
+  BellOff,
 } from 'lucide-react';
 import {
   Dialog,
@@ -43,6 +47,21 @@ interface DetectedStudent {
   confidence: number;
   timestamp: string;
   status: 'matched' | 'unknown';
+  attendanceStatus?: 'Present' | 'Late'; // Late if detected after session end time
+}
+
+// Session presets
+const SESSION_PRESETS = [
+  { key: 'morning', label: 'Morning', icon: Sun, start: '08:45', end: '09:20', color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
+  { key: 'evening', label: 'Evening', icon: Moon, start: '15:30', end: '16:20', color: '#6366F1', bg: '#EEF2FF', border: '#C7D2FE' },
+] as const;
+
+function getAttendanceStatus(sessionEnd: string): 'Present' | 'Late' {
+  const now = new Date();
+  const [h, m] = sessionEnd.split(':').map(Number);
+  const endMins = h * 60 + m;
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  return nowMins > endMins ? 'Late' : 'Present';
 }
 
 interface StudentData {
@@ -138,6 +157,9 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
   const [allStudents, setAllStudents] = useState<StudentData[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [departmentName, setDepartmentName] = useState<string>('Your Department');
+  const [selectedSession, setSelectedSession] = useState<typeof SESSION_PRESETS[number]>(SESSION_PRESETS[0]);
+  const [unknownAlerts, setUnknownAlerts] = useState<{ id: string; timestamp: string }[]>([]);
+  const [showAlertPanel, setShowAlertPanel] = useState(false);
 
   const [deletingStudent, setDeletingStudent] = useState<StudentData | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -193,6 +215,7 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
     setCurrentDetection(displayName);
 
     if (isMatched) {
+      const attStatus = getAttendanceStatus(selectedSession.end);
       const newDetection: DetectedStudent = {
         id: data.id ?? `matched-${Date.now()}`,
         rollNo: data.rollNo ?? data.roll_number ?? '—',
@@ -200,6 +223,7 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
         confidence: data.confidence ?? 0,
         timestamp: data.timestamp ?? new Date().toLocaleTimeString(),
         status: 'matched',
+        attendanceStatus: attStatus,
       };
       setDetectedStudents((prev) => {
         if (prev.some((s) => s.rollNo === newDetection.rollNo && s.status === 'matched')) return prev;
@@ -218,6 +242,9 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
         status: 'unknown',
       };
       setDetectedStudents((prev) => [unknownEntry, ...prev.filter((s) => s.status !== 'unknown').slice(0, 49)]);
+      // Add to alert panel
+      setUnknownAlerts((prev) => [{ id: `alert-${now}`, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 9)]);
+      setShowAlertPanel(true);
     }
     setTimeout(() => setCurrentDetection(null), 1500);
   };
@@ -228,8 +255,21 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleStartSession = () => { setIsScanning(true); setSessionTime(0); setDetectedStudents([]); };
+  const handleStartSession = () => { setIsScanning(true); setSessionTime(0); setDetectedStudents([]); setUnknownAlerts([]); };
   const handleStopSession = () => { setIsScanning(false); setCurrentDetection(null); };
+
+  const handleExportSessionCsv = () => {
+    const matched = detectedStudents.filter((s) => s.status === 'matched');
+    if (matched.length === 0) return;
+    const csv = ['Roll No,Name,Status,Time', ...matched.map((s) => `${s.rollNo},${s.name},${s.attendanceStatus || 'Present'},${s.timestamp}`)].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session_${selectedSession.key}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleDeleteClick = (student: StudentData) => { setDeletingStudent(student); setShowDeleteConfirm(true); };
   const confirmDelete = async () => {
@@ -323,6 +363,41 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
           </strong>{' '}
           — You can only view and manage students from your department.
         </span>
+      </div>
+
+      {/* ── Session Selector ── */}
+      <div>
+        <p className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>SELECT ATTENDANCE SESSION</p>
+        <div className="grid grid-cols-2 gap-3">
+          {SESSION_PRESETS.map((preset) => {
+            const Icon = preset.icon;
+            const isActive = selectedSession.key === preset.key;
+            return (
+              <button
+                key={preset.key}
+                onClick={() => setSelectedSession(preset)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all"
+                style={{
+                  backgroundColor: isActive ? preset.bg : '#FFFFFF',
+                  border: isActive ? `2px solid ${preset.color}` : '1px solid #E2E8F0',
+                  boxShadow: isActive ? `0 4px 12px ${preset.color}33` : 'none',
+                }}
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: preset.color + '22' }}>
+                  <Icon className="w-5 h-5" style={{ color: preset.color }} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: isActive ? preset.color : '#0F172A' }}>{preset.label} Session</p>
+                  <p className="text-xs" style={{ color: '#94A3B8' }}>
+                    {preset.start.replace(':', ':').replace(/^0/, '')} – {preset.end.replace(':', ':').replace(/^(1[0-9]|[2-9])/, m => m)}
+                    {' '}AM/PM
+                  </p>
+                </div>
+                {isActive && <div className="ml-auto w-2.5 h-2.5 rounded-full" style={{ backgroundColor: preset.color }} />}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Tab Navigation + CTA ── */}
@@ -558,7 +633,9 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
               <div className="px-4 pb-4" style={{ backgroundColor: '#FAFBFF' }}>
                 <Button
                   variant="outline"
+                  onClick={handleExportSessionCsv}
                   className="w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl"
+
                   style={{
                     borderColor: '#C7D2FE',
                     color: '#1E3A8A',
@@ -569,7 +646,46 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
                   Export List
                 </Button>
               </div>
+
+              {/* Unknown Face Alert Panel */}
+              {unknownAlerts.length > 0 && (
+                <div
+                  className="mx-4 mb-4 rounded-xl overflow-hidden"
+                  style={{ border: '1px solid #FDE68A', backgroundColor: '#FFFBEB' }}
+                >
+                  <div
+                    className="flex items-center justify-between px-3 py-2 cursor-pointer"
+                    onClick={() => setShowAlertPanel((v) => !v)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#F59E0B' }} />
+                      <Bell className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
+                      <span className="text-xs font-bold" style={{ color: '#D97706' }}>
+                        {unknownAlerts.length} Unknown Detection{unknownAlerts.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <BellOff className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
+                  </div>
+                  {showAlertPanel && (
+                    <div className="p-2 space-y-1 max-h-32 overflow-y-auto">
+                      {unknownAlerts.map((alert) => (
+                        <div
+                          key={alert.id}
+                          className="flex items-center gap-2 px-2 py-1 rounded-lg"
+                          style={{ backgroundColor: '#FEF3C7' }}
+                        >
+                          <AlertCircle className="w-3 h-3 flex-shrink-0" style={{ color: '#D97706' }} />
+                          <span className="text-xs" style={{ color: '#92400E' }}>
+                            Unregistered face at {alert.timestamp}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
+
           </div>
 
           {/* Live Recognition Feed */}
@@ -640,11 +756,17 @@ export function FacultyDashboard({ currentUser }: FacultyDashboardProps) {
                           <span
                             className="text-xs font-semibold px-2.5 py-1 rounded-full"
                             style={{
-                              backgroundColor: isMatch ? '#DCFCE7' : '#FEF3C7',
-                              color: isMatch ? '#059669' : '#D97706',
+                              backgroundColor: isMatch
+                                ? (student.attendanceStatus === 'Late' ? '#FEF3C7' : '#DCFCE7')
+                                : '#FEF3C7',
+                              color: isMatch
+                                ? (student.attendanceStatus === 'Late' ? '#D97706' : '#059669')
+                                : '#D97706',
                             }}
                           >
-                            {isMatch ? '✓ Present' : '⚠ Unregistered'}
+                            {isMatch
+                              ? (student.attendanceStatus === 'Late' ? '⏰ Late' : '✓ Present')
+                              : '⚠ Unregistered'}
                           </span>
                           <p className="text-xs mt-1" style={{ color: '#CBD5E1' }}>
                             {student.timestamp}

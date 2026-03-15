@@ -157,8 +157,8 @@ def insert_attendance(user_id):
         conn.close()
 
 
-def insert_faculty(email: str, password: str, name: str, department: str):
-    """Register a new faculty member"""
+def insert_faculty(email: str, password: str, name: str, department: str, faculty_id: str = None):
+    """Register a new faculty member (pending approval)"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -166,9 +166,9 @@ def insert_faculty(email: str, password: str, name: str, department: str):
         # department here is a department_id (integer sent as string from form)
         hashed = _hash_password(password)
         cursor.execute("""
-            INSERT INTO faculty (email, password_hash, name, department_id, role, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (email, hashed, name, int(department), 'faculty', datetime.now()))
+            INSERT INTO faculty (email, password_hash, name, department_id, role, faculty_id, is_active, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (email, hashed, name, int(department), 'faculty', faculty_id, False, datetime.now()))
 
         conn.commit()
         cursor.close()
@@ -265,11 +265,22 @@ def get_all_faculty():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT id, name, email, department_id, role, created_at
-            FROM faculty
-            ORDER BY name
-        """)
+        # We also want to fetch the new columns safely. If they don't exist yet, we can catch the error and fallback.
+        try:
+            cursor.execute("""
+                SELECT id, name, email, department_id, role, created_at, faculty_id, is_active
+                FROM faculty
+                ORDER BY name
+            """)
+            has_new_cols = True
+        except Exception:
+            conn.rollback()
+            cursor.execute("""
+                SELECT id, name, email, department_id, role, created_at
+                FROM faculty
+                ORDER BY name
+            """)
+            has_new_cols = False
 
         results = cursor.fetchall()
         cursor.close()
@@ -283,7 +294,9 @@ def get_all_faculty():
                 "email": row[2],
                 "departmentId": row[3],
                 "role": row[4],
-                "joinDate": row[5].isoformat() if row[5] else None
+                "joinDate": row[5].isoformat() if row[5] else None,
+                "facultyId": row[6] if has_new_cols else None,
+                "isActive": row[7] if has_new_cols else True, # Default to true for old records
             })
         return faculty_list
     except Exception as e:

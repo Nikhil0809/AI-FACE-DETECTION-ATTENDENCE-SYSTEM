@@ -52,6 +52,7 @@ export interface FacultyRegisterPayload {
   password: string;
   name: string;
   departmentId: number;
+  facultyId?: string; // Employee/Faculty ID number for admin verification
 }
 
 export interface AdminRegisterPayload {
@@ -120,17 +121,42 @@ export interface SmsLog {
 // DEPARTMENT & SECTION APIs
 // ===========================
 
+// Static fallback departments used when backend is unavailable (e.g. Netlify demo mode)
+const FALLBACK_DEPARTMENTS: Department[] = [
+  { id: 1,  name: 'Computer Science & Engineering', code: 'CSE', specialization: 'General' },
+  { id: 2,  name: 'Computer Science & Engineering', code: 'CSE', specialization: 'AI & ML' },
+  { id: 3,  name: 'Computer Science & Engineering', code: 'CSE', specialization: 'Data Science' },
+  { id: 4,  name: 'Computer Science & Engineering', code: 'CSE', specialization: 'Cyber Security' },
+  { id: 5,  name: 'Information Technology', code: 'IT', specialization: 'General' },
+  { id: 6,  name: 'Electronics & Communication', code: 'ECE', specialization: 'General' },
+  { id: 7,  name: 'Electronics & Communication', code: 'ECE', specialization: 'VLSI Design' },
+  { id: 8,  name: 'Electrical & Electronics', code: 'EEE', specialization: 'General' },
+  { id: 9,  name: 'Mechanical Engineering', code: 'ME', specialization: 'General' },
+  { id: 10, name: 'Civil Engineering', code: 'CE', specialization: 'General' },
+  { id: 11, name: 'Aerospace Engineering', code: 'AE', specialization: 'General' },
+  { id: 12, name: 'Artificial Intelligence', code: 'AI', specialization: 'General' },
+  { id: 13, name: 'Business Administration', code: 'MBA', specialization: 'General' },
+  { id: 14, name: 'Mathematics & Computing', code: 'MNC', specialization: 'General' },
+  { id: 15, name: 'Physics', code: 'PHY', specialization: 'General' },
+  { id: 16, name: 'Chemistry', code: 'CHEM', specialization: 'General' },
+  { id: 17, name: 'Biotechnology', code: 'BT', specialization: 'General' },
+  { id: 18, name: 'Other', code: 'OTH', specialization: 'General' },
+];
+
 export async function getDepartments(): Promise<Department[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/departments`);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
-    return data.departments || [];
+    const depts = data.departments || [];
+    // If backend returned empty list, use fallback
+    return depts.length > 0 ? depts : FALLBACK_DEPARTMENTS;
   } catch (error) {
-    console.warn('Could not fetch departments:', error);
-    return [];
+    console.warn('Could not fetch departments from backend, using fallback list:', error);
+    return FALLBACK_DEPARTMENTS;
   }
 }
+
 
 export async function getSections(departmentId: number): Promise<Section[]> {
   try {

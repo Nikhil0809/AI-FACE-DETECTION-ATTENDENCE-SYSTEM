@@ -95,6 +95,21 @@ def init_db():
             )
         """)
         
+        # Add new columns to faculty safely if they don't exist
+        try:
+            cursor.execute("ALTER TABLE faculty ADD COLUMN faculty_id VARCHAR(50)")
+        except psycopg2.errors.DuplicateColumn:
+            conn.rollback() # Reset transaction state
+        except Exception as e:
+            conn.rollback()
+        
+        try:
+            cursor.execute("ALTER TABLE faculty ADD COLUMN is_active BOOLEAN DEFAULT false")
+        except psycopg2.errors.DuplicateColumn:
+            conn.rollback()
+        except Exception as e:
+            conn.rollback()
+        
         conn.commit()
         cursor.close()
         conn.close()

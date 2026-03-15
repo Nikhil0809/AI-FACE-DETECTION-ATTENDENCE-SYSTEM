@@ -155,31 +155,55 @@ export function Reports() {
     applyFilters();
   };
 
-  const handleExportExcel = () => {
-    // For now, export as CSV (Excel can open CSV)
+  const handleExportCsv = () => {
     const csvContent = [
-      ['Student Name', 'Roll Number', 'Department', 'Section', 'Timestamp'],
+      ['Student Name', 'Roll Number', 'Department', 'Section', 'Status', 'Date & Time'],
       ...filteredRecords.map(record => [
         record.studentName,
         record.rollNumber,
         record.department || '',
         record.section || '',
-        record.timestamp
+        record.status || 'Present',
+        record.timestamp === 'N/A' ? 'Absent' : new Date(record.timestamp).toLocaleString(),
       ])
     ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'attendance_report.csv';
+    a.download = `attendance_${startDate}_to_${endDate}.csv`;
     a.click();
-    window.URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
   };
 
-  const handleExportCsv = () => {
-    handleExportExcel(); // Same as Excel for now
+  const handleExportExcel = handleExportCsv; // CSV is openable in Excel
+
+  const handleExportPdf = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const rows = filteredRecords.map((r, i) => `
+      <tr style="background:${i%2===0?'#fff':'#f8faff'}">
+        <td>${r.timestamp !== 'N/A' ? new Date(r.timestamp).toLocaleString() : '—'}</td>
+        <td>${r.studentName}</td>
+        <td>${r.rollNumber}</td>
+        <td>${r.department || ''}</td>
+        <td style="color:${r.status==='Present'?'#059669':'#DC2626'};font-weight:600">${r.status}</td>
+      </tr>`).join('');
+    printWindow.document.write(`
+      <html><head><title>Attendance Report</title>
+      <style>body{font-family:Arial,sans-serif;padding:20px}h2{color:#1E3A8A}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#1E3A8A;color:#fff;padding:8px;text-align:left}td{padding:7px 8px;border-bottom:1px solid #eee}</style>
+      </head><body>
+      <h2>Attendance Report</h2>
+      <p style="color:#64748B;font-size:12px">${startDate} to ${endDate} · ${filteredRecords.length} records</p>
+      <table><thead><tr><th>Date &amp; Time</th><th>Student Name</th><th>Roll No</th><th>Department</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      </body></html>`);
+    printWindow.document.close();
+    printWindow.print();
   };
+
+
 
   // Calculate daily attendance
   const dailyAttendance = filteredRecords.reduce(

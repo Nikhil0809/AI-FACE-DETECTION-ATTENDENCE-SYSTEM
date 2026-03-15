@@ -142,13 +142,14 @@ async def register_faculty(
     email: str = Form(...),
     password: str = Form(...),
     name: str = Form(...),
-    department: str = Form(...)
+    department: str = Form(...),
+    facultyId: str = Form(None)
 ):
     try:
-        success = insert_faculty(email, password, name, department)
+        success = insert_faculty(email, password, name, department, facultyId)
 
         if success:
-            return {"status": "success", "message": "Faculty registered successfully"}
+            return {"status": "success", "message": "Faculty registered successfully (pending approval)"}
 
         return {"status": "error", "message": "Faculty already exists"}
 
@@ -477,3 +478,153 @@ def get_sms_logs():
         return {"status": "success", "logs": logs}
     except Exception as e:
         return {"status": "error", "message": str(e), "logs": []}
+
+
+# -----------------------------
+# ATTENDANCE SESSIONS (Admin/Faculty schedule management)
+# In-memory store; replace with DB table for production
+# -----------------------------
+import uuid as _uuid
+from datetime import date as _date
+
+_sessions_store: list = []   # list of dicts
+
+
+@app.post("/attendance-sessions")
+async def create_attendance_session(
+    name: str = Form(...),
+    department_id: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    date: str = Form(...),
+    created_by: str = Form(None),
+):
+    try:
+        session = {
+            "id": len(_sessions_store) + 1,
+            "name": name,
+            "departmentId": int(department_id),
+            "startTime": start_time,
+            "endTime": end_time,
+            "date": date,
+            "isActive": True,
+            "createdAt": str(_date.today()),
+        }
+        _sessions_store.append(session)
+        await manager.broadcast({"type": "session_created", "data": session})
+        return {"status": "success", "message": "Session created", "session": session}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/attendance-sessions")
+def get_attendance_sessions(department_id: int = None, date: str = None):
+    result = _sessions_store
+    if department_id:
+        result = [s for s in result if s["departmentId"] == department_id]
+    if date:
+        result = [s for s in result if s["date"] == date]
+    return {"status": "success", "sessions": result}
+
+
+@app.delete("/attendance-sessions/{session_id}")
+async def delete_attendance_session(session_id: int):
+    global _sessions_store
+    before = len(_sessions_store)
+    _sessions_store = [s for s in _sessions_store if s["id"] != session_id]
+    if len(_sessions_store) < before:
+        await manager.broadcast({"type": "session_deleted", "data": {"session_id": session_id}})
+        return {"status": "success", "message": "Session deleted"}
+    return {"status": "error", "message": "Session not found"}
+
+
+@app.put("/attendance-sessions/{session_id}")
+async def update_attendance_session(
+    session_id: int,
+    name: str = Form(None),
+    start_time: str = Form(None),
+    end_time: str = Form(None),
+    is_active: str = Form(None),
+):
+    for session in _sessions_store:
+        if session["id"] == session_id:
+            if name: session["name"] = name
+            if start_time: session["startTime"] = start_time
+            if end_time: session["endTime"] = end_time
+            if is_active is not None: session["isActive"] = is_active.lower() == "true"
+            return {"status": "success", "message": "Session updated", "session": session}
+    return {"status": "error", "message": "Session not found"}
+
+
+# -----------------------------
+# FACULTY MANAGEMENT (Admin)
+# -----------------------------
+@app.delete("/faculty/{faculty_id}")
+async def delete_faculty(faculty_id: int):
+    """Delete a faculty member by ID (admin only)."""
+    try:
+        from app.models import get_db_connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM faculty WHERE id = %s", (faculty_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        await manager.broadcast({"type": "faculty_deleted", "data": {"faculty_id": faculty_id}})
+        return {"status": "success", "message": f"Faculty {faculty_id} removed"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/faculty/{faculty_id}/approve")
+async def approve_faculty(faculty_id: int):
+    """Approve a pending faculty account (admin only)."""
+    try:
+        from app.models import get_db_connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE faculty SET is_active = true WHERE id = %s", (faculty_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"status": "success", "message": f"Faculty {faculty_id} approved"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+# -----------------------------
+# STUDENT BULK IMPORT (no face required)
+# -----------------------------
+@app.post("/students/bulk-import")
+async def bulk_import_students(data: list):
+    """
+    Import students from CSV without face data.
+    Body: [ {"roll_number": ..., "name": ..., "department_id": ..., "section_id": ..., "phone_number": ...} ]
+    """
+    success_count = 0
+    error_count = 0
+    errors = []
+    for row in data:
+        try:
+            from app.models import insert_user
+            insert_user(
+                row.get("roll_number", ""),
+                row.get("name", ""),
+                int(row.get("department_id", 1)),
+                None,  # No embedding for bulk import
+                section_id=int(row["section_id"]) if row.get("section_id") else None,
+                phone_number=row.get("phone_number"),
+            )
+            success_count += 1
+        except Exception as e:
+            error_count += 1
+            errors.append({"row": row, "error": str(e)})
+
+    await manager.broadcast({"type": "bulk_import_complete", "data": {"success": success_count}})
+    return {
+        "status": "success",
+        "message": f"Imported {success_count} students, {error_count} errors",
+        "success_count": success_count,
+        "error_count": error_count,
+        "errors": errors[:10],
+    }

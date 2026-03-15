@@ -1,11 +1,82 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { AlertCircle, Trash2, RotateCcw, Database, Clock, Users, Edit2 } from 'lucide-react';
-import { apiClient } from '../api/apiClient';
+import {
+  AlertCircle,
+  Trash2,
+  RotateCcw,
+  Database,
+  Clock,
+  Users,
+  Edit2,
+  Sun,
+  Moon,
+  Plus,
+  CheckCircle,
+  XCircle,
+  Calendar,
+} from 'lucide-react';
+import { apiClient, getDepartments } from '../api/apiClient';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
+
+interface Department { id: number; name: string; }
+interface Session {
+  id: number;
+  name: string;
+  departmentId: number;
+  startTime: string;
+  endTime: string;
+  date: string;
+  isActive: boolean;
+}
+
+const SESSION_PRESETS = [
+  {
+    key: 'morning',
+    label: 'Morning Session',
+    icon: Sun,
+    start: '08:45',
+    end: '09:20',
+    color: '#F59E0B',
+    bg: '#FFFBEB',
+    border: '#FDE68A',
+    description: '8:45 AM – 9:20 AM',
+  },
+  {
+    key: 'evening',
+    label: 'Evening Session',
+    icon: Moon,
+    start: '15:30',
+    end: '16:20',
+    color: '#6366F1',
+    bg: '#EEF2FF',
+    border: '#C7D2FE',
+    description: '3:30 PM – 4:20 PM',
+  },
+];
+
+function formatTime(t: string) {
+  if (!t) return '';
+  const [h, m] = t.split(':');
+  const hour = parseInt(h);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const h12 = hour % 12 || 12;
+  return `${h12}:${m} ${ampm}`;
+}
+
+function isSessionActive(start: string, end: string, date: string): boolean {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  if (date !== todayStr) return false;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = sh * 60 + sm;
+  const endMins = eh * 60 + em;
+  return nowMins >= startMins && nowMins <= endMins;
+}
 
 export function AdminSettings() {
   const [loading, setLoading] = useState(false);
@@ -18,14 +89,17 @@ export function AdminSettings() {
     onConfirm: () => void;
   } | null>(null);
 
-  // Attendance Session state
+  // Sessions state
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [showSessionForm, setShowSessionForm] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [sessionForm, setSessionForm] = useState({
     name: '',
     departmentId: '',
     startTime: '',
     endTime: '',
-    date: '',
+    date: new Date().toISOString().slice(0, 10),
   });
 
   // Student Management state
@@ -36,6 +110,89 @@ export function AdminSettings() {
     phoneNumber: '',
   });
 
+  useEffect(() => {
+    loadDepartments();
+    loadSessions();
+  }, []);
+
+  const loadDepartments = async () => {
+    const depts = await getDepartments();
+    setDepartments(depts);
+  };
+
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const data = await apiClient.getAttendanceSessions(undefined, today);
+      setSessions(data || []);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const applyPreset = (preset: typeof SESSION_PRESETS[0]) => {
+    setSessionForm((f) => ({
+      ...f,
+      name: preset.label,
+      startTime: preset.start,
+      endTime: preset.end,
+    }));
+    setShowSessionForm(true);
+  };
+
+  const handleCreateSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionForm.name || !sessionForm.departmentId || !sessionForm.startTime || !sessionForm.endTime || !sessionForm.date) {
+      setError('Please fill all session fields');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    const result = await apiClient.createAttendanceSession(
+      sessionForm.name,
+      parseInt(sessionForm.departmentId),
+      sessionForm.startTime,
+      sessionForm.endTime,
+      sessionForm.date,
+      1
+    );
+
+    if (result.status === 'success') {
+      setSuccess('✓ Attendance session created successfully!');
+      setSessionForm({ name: '', departmentId: '', startTime: '', endTime: '', date: new Date().toISOString().slice(0, 10) });
+      setShowSessionForm(false);
+      loadSessions();
+    } else {
+      setError(result.message || 'Failed to create session');
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteSession = (id: number, name: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Delete Session',
+      description: `Are you sure you want to delete the session "${name}"?`,
+      onConfirm: async () => {
+        setLoading(true);
+        const result = await apiClient.deleteAttendanceSession(id);
+        if (result.status === 'success') {
+          setSuccess('✓ Session deleted.');
+          setConfirmDialog(null);
+          loadSessions();
+        } else {
+          setError(result.message || 'Failed to delete session');
+        }
+        setLoading(false);
+      },
+    });
+  };
+
   const handleDeleteStudents = async () => {
     setConfirmDialog({
       open: true,
@@ -45,7 +202,6 @@ export function AdminSettings() {
         setLoading(true);
         setError('');
         setSuccess('');
-
         const result = await apiClient.deleteAllStudents();
         if (result.status === 'success') {
           setSuccess('✓ All students deleted successfully!');
@@ -54,7 +210,7 @@ export function AdminSettings() {
           setError(result.message || 'Failed to delete students');
         }
         setLoading(false);
-      }
+      },
     });
   };
 
@@ -67,7 +223,6 @@ export function AdminSettings() {
         setLoading(true);
         setError('');
         setSuccess('');
-
         const result = await apiClient.deleteAllAttendance();
         if (result.status === 'success') {
           setSuccess('✓ All attendance records deleted successfully!');
@@ -76,7 +231,7 @@ export function AdminSettings() {
           setError(result.message || 'Failed to delete attendance');
         }
         setLoading(false);
-      }
+      },
     });
   };
 
@@ -89,7 +244,6 @@ export function AdminSettings() {
         setLoading(true);
         setError('');
         setSuccess('');
-
         const result = await apiClient.resetDatabase();
         if (result.status === 'success') {
           setSuccess('✓ Database reset successfully! All data has been cleared.');
@@ -98,38 +252,8 @@ export function AdminSettings() {
           setError(result.message || 'Failed to reset database');
         }
         setLoading(false);
-      }
+      },
     });
-  };
-
-  const handleCreateSession = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!sessionForm.name || !sessionForm.departmentId || !sessionForm.startTime || !sessionForm.endTime || !sessionForm.date) {
-      setError('Please fill all session fields');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    const result = await apiClient.createAttendanceSession(
-      sessionForm.name,
-      parseInt(sessionForm.departmentId),
-      sessionForm.startTime,
-      sessionForm.endTime,
-      sessionForm.date,
-      1  // Default admin user ID
-    );
-
-    if (result.status === 'success') {
-      setSuccess('✓ Attendance session created successfully!');
-      setSessionForm({ name: '', departmentId: '', startTime: '', endTime: '', date: '' });
-      setShowSessionForm(false);
-    } else {
-      setError(result.message || 'Failed to create session');
-    }
-    setLoading(false);
   };
 
   const handleUpdateStudent = async (e: React.FormEvent) => {
@@ -138,17 +262,10 @@ export function AdminSettings() {
       setError('Please fill student fields');
       return;
     }
-
     setLoading(true);
     setError('');
     setSuccess('');
-
-    const result = await apiClient.updateStudent(
-      parseInt(studentForm.studentId),
-      studentForm.name,
-      studentForm.phoneNumber || undefined
-    );
-
+    const result = await apiClient.updateStudent(parseInt(studentForm.studentId), studentForm.name, studentForm.phoneNumber || undefined);
     if (result.status === 'success') {
       setSuccess('✓ Student information updated successfully!');
       setStudentForm({ studentId: '', name: '', phoneNumber: '' });
@@ -160,20 +277,15 @@ export function AdminSettings() {
   };
 
   const handleDeleteStudent = async () => {
-    if (!studentForm.studentId) {
-      setError('Please enter student ID');
-      return;
-    }
-
+    if (!studentForm.studentId) { setError('Please enter student ID'); return; }
     setConfirmDialog({
       open: true,
       title: 'Delete Student',
-      description: `Are you sure you want to delete student with ID ${studentForm.studentId}? This action cannot be undone.`,
+      description: `Are you sure you want to delete student ${studentForm.studentId}? This cannot be undone.`,
       onConfirm: async () => {
         setLoading(true);
         setError('');
         setSuccess('');
-
         const result = await apiClient.deleteStudent(parseInt(studentForm.studentId));
         if (result.status === 'success') {
           setSuccess('✓ Student deleted successfully!');
@@ -184,290 +296,389 @@ export function AdminSettings() {
           setError(result.message || 'Failed to delete student');
         }
         setLoading(false);
-      }
+      },
     });
   };
 
-  const handleCancel = () => {
-    setConfirmDialog(null);
-  };
+  const getDeptName = (id: number) => departments.find((d) => d.id === id)?.name || `Dept ${id}`;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900" style={{ color: '#1E3A8A' }}>
-          Admin Settings
-        </h2>
-        <p className="text-gray-600 mt-2">Manage database and system operations</p>
+        <h2 className="text-2xl font-bold" style={{ color: '#1E3A8A' }}>Admin Settings</h2>
+        <p className="text-sm mt-1" style={{ color: '#64748B' }}>Manage sessions, students, and system operations</p>
       </div>
 
-      {/* Error Message */}
+      {/* Alerts */}
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
-
-      {/* Success Message */}
       {success && (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="p-4 bg-green-50 border border-green-200 rounded-xl flex gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-green-700">{success}</p>
         </div>
       )}
 
-      {/* Database Management Section */}
-      <Card className="p-6 rounded-xl shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <Database className="w-6 h-6" style={{ color: '#1E3A8A' }} />
-          <h3 className="text-lg font-bold" style={{ color: '#1E3A8A' }}>
-            Database Management
-          </h3>
-        </div>
-
-        <div className="space-y-4">
-          {/* Delete Students */}
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <div className="flex items-start justify-between">
-              <div>
-                <h4 className="font-medium text-gray-900">Delete All Students</h4>
-                <p className="text-sm text-gray-600 mt-1">Remove all student records and their face vectors from the database</p>
-              </div>
-              <Button
-                onClick={handleDeleteStudents}
-                className="px-4 py-2 rounded-lg text-white font-medium transition-all bg-red-600 hover:bg-red-700"
-                disabled={loading}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Students
-              </Button>
+      {/* ── ATTENDANCE SESSIONS ── */}
+      <Card className="rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        {/* Card Header */}
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#EEF2FF' }}>
+              <Clock className="w-5 h-5" style={{ color: '#1E3A8A' }} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold" style={{ color: '#0F172A' }}>Attendance Sessions</h3>
+              <p className="text-xs" style={{ color: '#94A3B8' }}>
+                {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
             </div>
           </div>
-
-          {/* Delete Attendance */}
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <div className="flex items-start justify-between">
-              <div>
-                <h4 className="font-medium text-gray-900">Delete All Attendance Records</h4>
-                <p className="text-sm text-gray-600 mt-1">Remove all attendance marking history</p>
-              </div>
-              <Button
-                onClick={handleDeleteAttendance}
-                className="px-4 py-2 rounded-lg text-white font-medium transition-all bg-yellow-600 hover:bg-yellow-700"
-                disabled={loading}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Records
-              </Button>
-            </div>
-          </div>
-
-          {/* Reset Database */}
-          <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-            <div className="flex items-start justify-between">
-              <div>
-                <h4 className="font-bold text-gray-900">Reset Entire Database</h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  <strong>WARNING:</strong> This will delete all students and attendance records. This action cannot be undone.
-                </p>
-              </div>
-              <Button
-                onClick={handleResetDatabase}
-                className="px-4 py-2 rounded-lg text-white font-medium transition-all bg-red-700 hover:bg-red-800"
-                disabled={loading}
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Reset Database
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Attendance Sessions Management */}
-      <Card className="p-6 rounded-xl shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <Clock className="w-6 h-6" style={{ color: '#1E3A8A' }} />
-          <h3 className="text-lg font-bold" style={{ color: '#1E3A8A' }}>
-            Attendance Sessions
-          </h3>
-        </div>
-
-        {showSessionForm ? (
-          <form onSubmit={handleCreateSession} className="space-y-4">
-            <div>
-              <Label>Session Name</Label>
-              <Input
-                type="text"
-                placeholder="e.g., Morning Session"
-                value={sessionForm.name}
-                onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
-                className="mt-1.5"
-              />
-            </div>
-
-            <div>
-              <Label>Department ID</Label>
-              <Input
-                type="number"
-                placeholder="Enter department ID"
-                value={sessionForm.departmentId}
-                onChange={(e) => setSessionForm({ ...sessionForm, departmentId: e.target.value })}
-                className="mt-1.5"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Start Time (HH:MM)</Label>
-                <Input
-                  type="time"
-                  value={sessionForm.startTime}
-                  onChange={(e) => setSessionForm({ ...sessionForm, startTime: e.target.value })}
-                  className="mt-1.5"
-                />
-              </div>
-              <div>
-                <Label>End Time (HH:MM)</Label>
-                <Input
-                  type="time"
-                  value={sessionForm.endTime}
-                  onChange={(e) => setSessionForm({ ...sessionForm, endTime: e.target.value })}
-                  className="mt-1.5"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label>Date</Label>
-              <Input
-                type="date"
-                value={sessionForm.date}
-                onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
-                className="mt-1.5"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="submit"
-                className="flex-1 bg-green-600 text-white hover:bg-green-700"
-                disabled={loading}
-              >
-                Create Session
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowSessionForm(false)}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        ) : (
           <Button
-            onClick={() => setShowSessionForm(true)}
-            className="w-full bg-blue-600 text-white hover:bg-blue-700"
+            onClick={() => setShowSessionForm((v) => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-white rounded-xl px-4 py-2"
+            style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)', boxShadow: '0 4px 12px rgba(30,58,138,0.25)' }}
           >
-            + Create New Attendance Session
+            <Plus className="w-4 h-4" />
+            New Session
           </Button>
-        )}
-      </Card>
-
-      {/* Student Data Management */}
-      <Card className="p-6 rounded-xl shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <Users className="w-6 h-6" style={{ color: '#1E3A8A' }} />
-          <h3 className="text-lg font-bold" style={{ color: '#1E3A8A' }}>
-            Student Management
-          </h3>
         </div>
 
-        {showStudentForm ? (
-          <form className="space-y-4">
-            <div>
-              <Label>Student ID</Label>
-              <Input
-                type="number"
-                placeholder="Enter student ID"
-                value={studentForm.studentId}
-                onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
-                className="mt-1.5"
-              />
+        <div className="p-6 space-y-5" style={{ backgroundColor: '#FAFBFF' }}>
+          {/* Preset Buttons */}
+          <div>
+            <p className="text-xs font-semibold mb-3" style={{ color: '#64748B' }}>⚡ QUICK PRESETS</p>
+            <div className="grid grid-cols-2 gap-4">
+              {SESSION_PRESETS.map((preset) => {
+                const Icon = preset.icon;
+                return (
+                  <button
+                    key={preset.key}
+                    onClick={() => applyPreset(preset)}
+                    className="flex items-center gap-4 p-4 rounded-2xl text-left transition-all hover:scale-[1.02]"
+                    style={{ backgroundColor: preset.bg, border: `2px solid ${preset.border}` }}
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: preset.color + '22' }}
+                    >
+                      <Icon className="w-6 h-6" style={{ color: preset.color }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold" style={{ color: '#0F172A' }}>{preset.label}</p>
+                      <p className="text-xs font-medium mt-0.5" style={{ color: preset.color }}>{preset.description}</p>
+                      <p className="text-xs mt-1" style={{ color: '#94A3B8' }}>Click to use this preset</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Create Session Form */}
+          {showSessionForm && (
+            <form onSubmit={handleCreateSession} className="space-y-4 p-5 rounded-2xl" style={{ border: '1px solid #C7D2FE', backgroundColor: '#FFFFFF' }}>
+              <p className="text-sm font-bold" style={{ color: '#1E3A8A' }}>Create New Session</p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs font-semibold" style={{ color: '#64748B' }}>Session Name</Label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., Morning Session"
+                    value={sessionForm.name}
+                    onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
+                    className="mt-1.5 rounded-xl"
+                    style={{ borderColor: '#C7D2FE' }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold" style={{ color: '#64748B' }}>Department</Label>
+                  <select
+                    value={sessionForm.departmentId}
+                    onChange={(e) => setSessionForm({ ...sessionForm, departmentId: e.target.value })}
+                    className="w-full mt-1.5 rounded-xl px-3 py-2 text-sm outline-none"
+                    style={{ border: '1px solid #C7D2FE', backgroundColor: '#F8FAFF', color: '#0F172A' }}
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-xs font-semibold" style={{ color: '#64748B' }}>Start Time</Label>
+                  <Input
+                    type="time"
+                    value={sessionForm.startTime}
+                    onChange={(e) => setSessionForm({ ...sessionForm, startTime: e.target.value })}
+                    className="mt-1.5 rounded-xl"
+                    style={{ borderColor: '#C7D2FE' }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold" style={{ color: '#64748B' }}>End Time</Label>
+                  <Input
+                    type="time"
+                    value={sessionForm.endTime}
+                    onChange={(e) => setSessionForm({ ...sessionForm, endTime: e.target.value })}
+                    className="mt-1.5 rounded-xl"
+                    style={{ borderColor: '#C7D2FE' }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold" style={{ color: '#64748B' }}>Date</Label>
+                  <Input
+                    type="date"
+                    value={sessionForm.date}
+                    onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
+                    className="mt-1.5 rounded-xl"
+                    style={{ borderColor: '#C7D2FE' }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 font-semibold text-white rounded-xl"
+                  style={{ background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
+                >
+                  Create Session
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 rounded-xl"
+                  onClick={() => { setShowSessionForm(false); setError(''); }}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {/* Today's Sessions List */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="w-4 h-4" style={{ color: '#1E3A8A' }} />
+              <p className="text-xs font-semibold" style={{ color: '#64748B' }}>TODAY'S SESSIONS</p>
             </div>
 
-            <div>
-              <Label>Student Name</Label>
-              <Input
-                type="text"
-                placeholder="Enter student name"
-                value={studentForm.name}
-                onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
-                className="mt-1.5"
-              />
-            </div>
+            {sessionsLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-16 rounded-xl animate-pulse" style={{ backgroundColor: '#E2E8F0' }} />
+                ))}
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="text-center py-8 rounded-2xl" style={{ border: '2px dashed #E2E8F0', backgroundColor: '#FFFFFF' }}>
+                <Clock className="w-8 h-8 mx-auto mb-2" style={{ color: '#CBD5E1' }} />
+                <p className="text-sm font-medium" style={{ color: '#94A3B8' }}>No sessions created for today</p>
+                <p className="text-xs mt-1" style={{ color: '#CBD5E1' }}>Use the presets above to quickly add a session</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sessions.map((session) => {
+                  const active = isSessionActive(session.startTime, session.endTime, session.date);
+                  const isMorning = session.startTime <= '12:00';
+                  const PresetIcon = isMorning ? Sun : Moon;
+                  const accentColor = isMorning ? '#F59E0B' : '#6366F1';
+                  const accentBg = isMorning ? '#FFFBEB' : '#EEF2FF';
+                  return (
+                    <div
+                      key={session.id}
+                      className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                      style={{
+                        border: active ? `2px solid ${accentColor}` : '1px solid #E2E8F0',
+                        backgroundColor: active ? accentBg : '#FFFFFF',
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: accentColor + '22' }}>
+                          <PresetIcon className="w-5 h-5" style={{ color: accentColor }} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold" style={{ color: '#0F172A' }}>{session.name}</p>
+                          <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
+                            {formatTime(session.startTime)} – {formatTime(session.endTime)} · {getDeptName(session.departmentId)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+                          style={
+                            active
+                              ? { backgroundColor: accentColor + '22', color: accentColor }
+                              : { backgroundColor: '#F1F5F9', color: '#94A3B8' }
+                          }
+                        >
+                          {active ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                          {active ? 'Active' : 'Inactive'}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteSession(session.id, session.name)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                          title="Delete session"
+                        >
+                          <Trash2 className="w-4 h-4" style={{ color: '#DC2626' }} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
 
-            <div>
-              <Label>Phone Number</Label>
-              <Input
-                type="tel"
-                placeholder="Enter phone number (optional)"
-                value={studentForm.phoneNumber}
-                onChange={(e) => setStudentForm({ ...studentForm, phoneNumber: e.target.value })}
-                className="mt-1.5"
-              />
-            </div>
+      {/* ── DATABASE MANAGEMENT ── */}
+      <Card className="rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div className="px-6 py-4 flex items-center gap-3" style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#FEF2F2' }}>
+            <Database className="w-5 h-5" style={{ color: '#DC2626' }} />
+          </div>
+          <div>
+            <h3 className="text-base font-bold" style={{ color: '#0F172A' }}>Database Management</h3>
+            <p className="text-xs" style={{ color: '#94A3B8' }}>Destructive actions — use with caution</p>
+          </div>
+        </div>
 
-            <div className="flex gap-2">
+        <div className="p-6 space-y-4" style={{ backgroundColor: '#FAFBFF' }}>
+          {[
+            { label: 'Delete All Students', desc: 'Remove all student records and face vectors', onClick: handleDeleteStudents, color: 'bg-red-600 hover:bg-red-700' },
+            { label: 'Delete All Attendance Records', desc: 'Remove all attendance marking history', onClick: handleDeleteAttendance, color: 'bg-yellow-600 hover:bg-yellow-700' },
+            { label: 'Reset Entire Database', desc: 'WARNING: Deletes all students and attendance records permanently.', onClick: handleResetDatabase, color: 'bg-red-800 hover:bg-red-900' },
+          ].map(({ label, desc, onClick, color }) => (
+            <div key={label} className="flex items-center justify-between p-4 rounded-xl" style={{ border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
+              <div>
+                <h4 className="font-semibold text-sm" style={{ color: '#0F172A' }}>{label}</h4>
+                <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>{desc}</p>
+              </div>
               <Button
-                onClick={handleUpdateStudent}
-                className="flex-1 bg-green-600 text-white hover:bg-green-700"
+                onClick={onClick}
                 disabled={loading}
+                className={`flex items-center gap-2 text-sm font-semibold text-white rounded-xl px-4 py-2 ${color}`}
               >
-                <Edit2 className="w-4 h-4 mr-2" />
-                Update Student
-              </Button>
-              <Button
-                onClick={handleDeleteStudent}
-                className="flex-1 text-white font-medium transition-all bg-red-600 hover:bg-red-700"
-                disabled={loading}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
+                <Trash2 className="w-4 h-4" />
                 Delete
               </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  setShowStudentForm(false);
-                  setConfirmDialog(null);
-                }}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
             </div>
-          </form>
-        ) : (
-          <Button
-            onClick={() => setShowStudentForm(true)}
-            className="w-full bg-blue-600 text-white hover:bg-blue-700"
-          >
-            + Manage Student Data
-          </Button>
-        )}
+          ))}
+
+          <div className="flex items-center justify-between p-4 rounded-xl" style={{ border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
+            <div>
+              <h4 className="font-semibold text-sm" style={{ color: '#0F172A' }}>Reset Entire Database</h4>
+              <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
+                <strong>WARNING:</strong> Deletes all students and attendance records permanently.
+              </p>
+            </div>
+            <Button
+              onClick={handleResetDatabase}
+              disabled={loading}
+              className="flex items-center gap-2 text-sm font-semibold text-white rounded-xl px-4 py-2 bg-red-700 hover:bg-red-800"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reset
+            </Button>
+          </div>
+        </div>
       </Card>
-      <Card className="p-6 rounded-xl shadow-sm bg-blue-50 border border-blue-200">
-        <h4 className="font-medium text-gray-900 mb-3">Important Information</h4>
-        <ul className="text-sm text-gray-700 space-y-2">
-          <li>✓ Deleting students removes their face vectors and profile data</li>
-          <li>✓ Deleting attendance records clears all marking history</li>
-          <li>✓ Database reset will clear all data but keep admin accounts</li>
-          <li>✓ All operations are logged and cannot be undone</li>
+
+      {/* ── STUDENT MANAGEMENT ── */}
+      <Card className="rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#EEF2FF' }}>
+              <Users className="w-5 h-5" style={{ color: '#1E3A8A' }} />
+            </div>
+            <h3 className="text-base font-bold" style={{ color: '#0F172A' }}>Student Data Management</h3>
+          </div>
+        </div>
+
+        <div className="p-6" style={{ backgroundColor: '#FAFBFF' }}>
+          {showStudentForm ? (
+            <form className="space-y-4 p-5 rounded-2xl" style={{ border: '1px solid #C7D2FE', backgroundColor: '#FFFFFF' }}>
+              <p className="text-sm font-bold" style={{ color: '#1E3A8A' }}>Edit / Delete Student</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-xs font-semibold" style={{ color: '#64748B' }}>Student ID</Label>
+                  <Input
+                    type="number"
+                    placeholder="Enter ID"
+                    value={studentForm.studentId}
+                    onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
+                    className="mt-1.5 rounded-xl"
+                    style={{ borderColor: '#C7D2FE' }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold" style={{ color: '#64748B' }}>Student Name</Label>
+                  <Input
+                    type="text"
+                    placeholder="Enter name"
+                    value={studentForm.name}
+                    onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
+                    className="mt-1.5 rounded-xl"
+                    style={{ borderColor: '#C7D2FE' }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold" style={{ color: '#64748B' }}>Phone (optional)</Label>
+                  <Input
+                    type="tel"
+                    placeholder="Phone number"
+                    value={studentForm.phoneNumber}
+                    onChange={(e) => setStudentForm({ ...studentForm, phoneNumber: e.target.value })}
+                    className="mt-1.5 rounded-xl"
+                    style={{ borderColor: '#C7D2FE' }}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={handleUpdateStudent} className="flex-1 font-semibold text-white rounded-xl bg-green-600 hover:bg-green-700" disabled={loading}>
+                  <Edit2 className="w-4 h-4 mr-2" /> Update
+                </Button>
+                <Button onClick={handleDeleteStudent} className="flex-1 font-semibold text-white rounded-xl bg-red-600 hover:bg-red-700" disabled={loading}>
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                </Button>
+                <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowStudentForm(false)} disabled={loading}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <Button
+              onClick={() => setShowStudentForm(true)}
+              className="w-full font-semibold text-white rounded-xl py-3"
+              style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)' }}
+            >
+              <Edit2 className="w-4 h-4 mr-2" /> Manage Student Data
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      {/* Info */}
+      <Card className="p-5 rounded-2xl" style={{ backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+        <h4 className="font-semibold text-sm mb-3" style={{ color: '#0369A1' }}>ℹ️ Important Notes</h4>
+        <ul className="text-xs space-y-1.5" style={{ color: '#0369A1' }}>
+          <li>✓ Deleting students removes their face vectors and profile data permanently</li>
+          <li>✓ Session presets (Morning 8:45–9:20, Evening 3:30–4:20) are fixed institutional times</li>
+          <li>✓ Sessions are scoped per department — each department can have its own session</li>
+          <li>✓ All destructive operations create an audit trail and cannot be undone</li>
         </ul>
       </Card>
 
