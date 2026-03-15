@@ -109,6 +109,21 @@ def init_db():
             conn.rollback()
         except Exception as e:
             conn.rollback()
+
+        try:
+            cursor.execute("ALTER TABLE faculty ADD COLUMN role VARCHAR(50) DEFAULT 'faculty'")
+        except psycopg2.errors.DuplicateColumn:
+            conn.rollback()
+        except Exception as e:
+            conn.rollback()
+
+        try:
+            cursor.execute("ALTER TABLE faculty ADD COLUMN department_id INTEGER")
+        except psycopg2.errors.DuplicateColumn:
+            conn.rollback()
+        except Exception as e:
+            conn.rollback()
+
         
         conn.commit()
         cursor.close()

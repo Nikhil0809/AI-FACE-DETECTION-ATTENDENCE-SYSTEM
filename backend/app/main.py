@@ -16,7 +16,14 @@ from app.models import (
 from app.worker import process_frame
 from app.sms_service import send_sms_notification, SMS_LOG_FILE
 
+from app.database import init_db
+
 app = FastAPI(title="Enterprise AI Attendance System")
+
+@app.on_event("startup")
+def startup_event():
+    init_db()
+
 
 # -----------------------------
 # CORS CONFIGURATION
