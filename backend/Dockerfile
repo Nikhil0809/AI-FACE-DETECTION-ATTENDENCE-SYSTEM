@@ -18,14 +18,11 @@ WORKDIR /app
 # Upgrade pip and install cython first (crucial for insightface)
 RUN pip install --upgrade pip setuptools wheel cython
 
-# Copy the requirements file into the container
-COPY requirements*.txt .
+# Copy the entire backend codebase (including requirements.txt)
+COPY . .
 
 # Install necessary Python packages
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the backend codebase
-COPY . .
 
 # Expose port (Cloud providers map their incoming port to the container's EXPOSE port)
 EXPOSE 8080
