@@ -11,6 +11,7 @@ out/
 
 # Python virtual environments
 .venv/
+.venv312/
 venv/
 env/
 __pycache__/
@@ -27,6 +28,10 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+
+# Databases
+*.db
+*.sqlite
 
 # Logs
 *.log
