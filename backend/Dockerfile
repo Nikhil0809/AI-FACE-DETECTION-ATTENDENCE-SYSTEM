@@ -19,7 +19,7 @@ WORKDIR /app
 RUN pip install --upgrade pip setuptools wheel cython
 
 # Copy the requirements file into the container
-COPY requirements.txt .
+COPY requirements*.txt .
 
 # Install necessary Python packages
 RUN pip install --no-cache-dir -r requirements.txt
