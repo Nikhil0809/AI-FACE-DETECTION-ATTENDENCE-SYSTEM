@@ -3,7 +3,8 @@ fastapi
 uvicorn[standard]
 psycopg2-binary
 opencv-python-headless
-numpy
+numpy<2
 python-multipart
 insightface
 onnxruntime
+ml_dtypes>=0.4.0
