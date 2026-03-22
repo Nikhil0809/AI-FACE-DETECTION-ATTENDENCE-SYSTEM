@@ -1,0 +1,14 @@
+node_modules/
+.venv/
+.venv312/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite
+flask.log
+*.egg-info/
+.DS_Store
