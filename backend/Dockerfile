@@ -28,4 +28,4 @@ COPY . .
 EXPOSE 8080
 
 # Run uvicorn when the container launches (FastAPI requires uvicorn, not gunicorn)
-CMD ["uvicorn", "app.main_old:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
