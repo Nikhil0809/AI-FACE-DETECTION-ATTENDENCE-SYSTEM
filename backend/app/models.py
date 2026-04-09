@@ -27,6 +27,12 @@ def insert_user(roll_number, name, department_id, embedding, section_id=None, ph
         cursor.execute("""
             INSERT INTO users (roll_number, name, department_id, section_id, phone_number, face_vector)
             VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (roll_number) DO UPDATE
+            SET name = EXCLUDED.name,
+                department_id = EXCLUDED.department_id,
+                section_id = EXCLUDED.section_id,
+                phone_number = EXCLUDED.phone_number,
+                face_vector = EXCLUDED.face_vector
         """, (roll_number, name, department_id, section_id, phone_number, face_json))
         conn.commit()
     except Exception as e:
@@ -168,6 +174,12 @@ def insert_faculty(email: str, password: str, name: str, department: str, facult
         cursor.execute("""
             INSERT INTO faculty (email, password_hash, name, department_id, role, faculty_id, is_active, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (email) DO UPDATE 
+            SET password_hash = EXCLUDED.password_hash,
+                name = EXCLUDED.name,
+                department_id = EXCLUDED.department_id,
+                faculty_id = EXCLUDED.faculty_id,
+                is_active = true
         """, (email, hashed, name, int(department), 'faculty', faculty_id, True, datetime.now()))
 
         conn.commit()
@@ -346,6 +358,11 @@ def insert_admin(email: str, password: str, name: str, department: str):
         cursor.execute("""
             INSERT INTO faculty (email, password_hash, name, department_id, role, is_active, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (email) DO UPDATE
+            SET password_hash = EXCLUDED.password_hash,
+                name = EXCLUDED.name,
+                department_id = EXCLUDED.department_id,
+                is_active = true
         """, (email, hashed, name, int(department), 'admin', True, datetime.now()))
 
         conn.commit()

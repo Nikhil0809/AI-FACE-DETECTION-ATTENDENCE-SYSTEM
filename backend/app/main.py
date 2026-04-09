@@ -156,7 +156,7 @@ async def register_faculty(
         success = insert_faculty(email, password, name, department, facultyId)
 
         if success:
-            return {"status": "success", "message": "Faculty registered successfully (pending approval)"}
+            return {"status": "success", "message": "Faculty registered successfully"}
 
         return {"status": "error", "message": "Faculty already exists"}
 
