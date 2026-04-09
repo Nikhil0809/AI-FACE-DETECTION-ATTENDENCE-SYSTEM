@@ -158,7 +158,7 @@ def insert_attendance(user_id):
 
 
 def insert_faculty(email: str, password: str, name: str, department: str, faculty_id: str = None):
-    """Register a new faculty member (pending approval)"""
+    """Register a new faculty member (auto-approved for now)"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -168,7 +168,7 @@ def insert_faculty(email: str, password: str, name: str, department: str, facult
         cursor.execute("""
             INSERT INTO faculty (email, password_hash, name, department_id, role, faculty_id, is_active, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (email, hashed, name, int(department), 'faculty', faculty_id, False, datetime.now()))
+        """, (email, hashed, name, int(department), 'faculty', faculty_id, True, datetime.now()))
 
         conn.commit()
         cursor.close()
@@ -344,9 +344,9 @@ def insert_admin(email: str, password: str, name: str, department: str):
 
         hashed = _hash_password(password)
         cursor.execute("""
-            INSERT INTO faculty (email, password_hash, name, department_id, role, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (email, hashed, name, int(department), 'admin', datetime.now()))
+            INSERT INTO faculty (email, password_hash, name, department_id, role, is_active, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (email, hashed, name, int(department), 'admin', True, datetime.now()))
 
         conn.commit()
         cursor.close()
