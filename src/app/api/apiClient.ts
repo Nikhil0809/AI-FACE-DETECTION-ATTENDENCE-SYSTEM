@@ -158,15 +158,26 @@ export async function getDepartments(): Promise<Department[]> {
 }
 
 
+const FALLBACK_SECTIONS: Section[] = [
+  { id: 1, name: 'A' },
+  { id: 2, name: 'B' },
+  { id: 3, name: 'C' },
+  { id: 4, name: 'D' },
+  { id: 5, name: 'E' },
+  { id: 6, name: 'F' },
+  { id: 7, name: 'G' }
+];
+
 export async function getSections(departmentId: number): Promise<Section[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/departments/${departmentId}/sections`);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
-    return data.sections || [];
+    const secs = data.sections || [];
+    return secs.length > 0 ? secs : FALLBACK_SECTIONS;
   } catch (error) {
     console.warn(`Could not fetch sections for department ${departmentId}:`, error);
-    return [];
+    return FALLBACK_SECTIONS;
   }
 }
 
