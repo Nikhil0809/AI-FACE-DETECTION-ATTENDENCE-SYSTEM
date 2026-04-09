@@ -188,7 +188,7 @@ def authenticate_faculty(email: str, password: str):
         cursor.execute("""
             SELECT id, name, email, department_id, password_hash
             FROM faculty
-            WHERE email = %s AND role = 'faculty' AND is_active = true
+            WHERE email = %s AND role = 'faculty'
         """, (email,))
 
         result = cursor.fetchone()
@@ -224,7 +224,7 @@ def authenticate_admin(email: str, password: str):
         cursor.execute("""
             SELECT id, name, email, department_id, password_hash
             FROM faculty
-            WHERE email = %s AND role = 'admin' AND is_active = true
+            WHERE email = %s AND role = 'admin'
         """, (email,))
 
         result = cursor.fetchone()
